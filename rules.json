@@ -1,99 +1,4473 @@
 {
-  "name": "随手大师摄影规则库",
-  "version": "1.1.0",
-  "updated": "2026-10-10",
-  "note": "每条规则：subs 适用场景；when 触发条件（画面特征表达式）；pri 优先级（越小越先显示）；pen 构图分扣分；title/text 提示文案，花括号里是表达式；picto 示意图；draw 取景画面标注；principle 摄影原理；source 知识出处类别。kind=tip 的是场景技巧，画面没有问题时轮播显示。",
-  "rules": [
-    {"id":"C-tilt","subs":["vista","city","sunset","night","full","half","travel","sit"],"when":"has_tilt && tilt_abs >= 1.5","pri":1,"pen":"min(25, round(tilt_abs*4))","title":"画面歪了 {tilt_abs}°","text":"{tilt > 0 ? '手机右侧抬高一点' : '手机左侧抬高一点'}，摆正再拍","picto":"tilt","flip":"tilt < 0","draw":{"type":"tilt","theta":"tilt","src":"tilt_src"},"principle":"地平线或建筑线一歪，整张照片就显得不稳。摆正水平是最基础也最容易被忽略的一步。","source":"构图基础 · 水平与垂直"},
-
-    {"id":"V-horizon","subs":["vista"],"when":"has_hz && hz_y > 0.4 && hz_y < 0.6","pri":2,"pen":12,"title":"地平线压在画面正中","text":"{hz_t > hz_y ? '手机往上仰一点，地平线落到下三分线，多留天空' : '手机往下压一点，地平线落到上三分线，多拍地面'}","picto":"hz_t > hz_y ? 'pitchUp' : 'pitchDown'","draw":{"type":"hline","y":"hz_y","t":"hz_t"},"principle":"三分法：地平线放在三分线上，画面有主次。天空好看就多留天空，地面好看就多拍地面。","source":"构图基础 · 三分法"},
-    {"id":"V-plainsky","subs":["vista"],"when":"has_hz && sky_sd < 5 && hz_y > 0.5","pri":4,"pen":6,"title":"天空没有云","text":"手机往下压，少拍天空，多拍地面","picto":"pitchDown","draw":{"type":"hline","y":"hz_y","t":"1/3"},"principle":"大片空白的天空没有信息量，把画面让给有细节的地面更耐看。","source":"风光摄影 · 取舍"},
-    {"id":"V-fore","subs":["vista"],"when":"has_hz && low_edge < 0.04 && low_sd < 12","pri":5,"pen":6,"title":"前景有点空","text":"画面下方放一点石头、花草或栏杆，更有层次","picto":"fore","principle":"前景、中景、远景三层叠在一起，平面照片才有纵深感。","source":"风光摄影 · 层次"},
-
-    {"id":"B-keystone","subs":["city"],"when":"abs(keystone) > 2.5","pri":2,"pen":12,"title":"{keystone > 0 ? '建筑竖线往里倒' : '建筑竖线往外张'}","text":"{keystone > 0 ? '手机别仰太多，竖直拿，后退几步再拍' : '手机别往下压，平视拍'}","picto":"keystone","draw":{"type":"keystone","ks":"keystone"},"principle":"手机一仰，平行的竖线就会在画面里汇聚，楼像要倒。保持手机竖直、退远一点，竖线就能保持平行。","source":"建筑摄影 · 透视控制"},
-    {"id":"B-sym","subs":["city"],"when":"sym_score > 0.55 && abs(sym_shift) > 0.03","pri":3,"pen":8,"title":"对称建筑没对正","text":"{sym_shift > 0 ? '手机向右平移一点' : '手机向左平移一点'}，对准中轴线","picto":"sym","draw":{"type":"sym","c":"sym_c"},"principle":"对称的建筑就要拍得严格对称，差一点点反而显得随意。","source":"建筑摄影 · 对称构图"},
-    {"id":"B-top","subs":["city"],"when":"top_edge > 0.15 && vdens > 0.04","pri":4,"pen":6,"title":"楼顶可能被切掉","text":"后退几步，把建筑拍完整","picto":"top","draw":{"type":"topband"},"principle":"建筑的顶部往往是最有特点的部分，切掉会让人觉得不完整。","source":"建筑摄影 · 完整性"},
-
-    {"id":"S-exposure","subs":["sunset"],"when":"hi > 0.04","pri":2,"pen":12,"title":"天空过曝","text":"点一下画面最亮的地方，降低曝光","picto":"bright","principle":"日落时天空和地面亮度差很大。按亮部测光，晚霞的颜色才保得住，地面暗一点没关系。","source":"曝光 · 高光优先"},
-    {"id":"S-horizon","subs":["sunset"],"when":"has_hz && hz_y < 0.58","pri":3,"pen":10,"title":"天空留得不够","text":"手机往上仰，地平线放到下三分线，天空占 2/3","picto":"pitchUp","draw":{"type":"hline","y":"hz_y","t":"2/3"},"principle":"日落的主角是天空和云，给它更多的画面。","source":"风光摄影 · 日出日落"},
-    {"id":"S-sunpos","subs":["sunset"],"when":"sun_mean > 220 && abs(sun_x - 0.5) < 0.12 && abs(sun_y - 0.5) < 0.15","pri":3,"pen":8,"title":"太阳在正中间","text":"移动手机，把太阳放到三分线交点","picto":"sunpos","draw":{"type":"arrow2","x":"sun_x","y":"sun_y","tx":"sun_tx","ty":"sun_ty","label":"太阳放这里"},"principle":"太阳放在正中间画面会很呆板，放在三分线交点上更有张力。","source":"构图基础 · 三分法"},
-    {"id":"S-silhouette","subs":["sunset"],"when":"has_person && face_dark","pri":6,"pen":0,"title":"可以拍剪影","text":"人物站在太阳前，点亮部测光，拍出黑色剪影","picto":"silhouette","principle":"逆光时与其硬把脸提亮，不如顺势拍剪影，轮廓和姿势就是主角。","source":"人像 · 逆光剪影"},
-
-    {"id":"N-shake","subs":["night"],"when":"has_shake && shake > 6","pri":1,"pen":12,"title":"手机在抖","text":"双手拿稳，或靠在栏杆、墙上，稳定条变绿再拍","picto":"shake","draw":{"type":"shakepill"},"principle":"夜里光线少，手机会自动延长曝光时间，一点点抖动就会让照片发糊。","source":"夜景 · 稳定"},
-    {"id":"N-lights","subs":["night"],"when":"hi > 0.06","pri":3,"pen":8,"title":"灯光过曝","text":"点一下最亮的灯，降低曝光","picto":"bright","principle":"灯光一旦过曝就变成一片白，失去颜色和形状。","source":"曝光 · 高光优先"},
-    {"id":"N-dark","subs":["night"],"when":"mean < 40","pri":4,"pen":6,"title":"画面很暗","text":"打开「夜景合成」，按快门后保持 2 秒不动，会自动连拍提亮","picto":"moon","principle":"多帧合成：连拍多张对齐后叠加平均，噪点随帧数增加而减少，暗部可以安全提亮。","source":"夜景 · 多帧降噪"},
-
-    {"id":"M-clutter","subs":["macro"],"when":"border_sharp > center_sharp*0.9 && border_sharp > 8","pri":2,"pen":12,"title":"背景太乱","text":"换个角度，或蹲下来对着天空拍，背景更干净","picto":"clutter","principle":"特写的秘诀是做减法：背景越简单，主体越突出。","source":"静物 · 简洁背景"},
-    {"id":"M-pos","subs":["macro"],"when":"spread < 0.22 && abs(sharp_x - 0.5) < 0.08 && abs(sharp_y - 0.5) < 0.08","pri":3,"pen":8,"title":"主体在正中间","text":"移动手机，把主体放到三分线交点","picto":"macropos","draw":{"type":"arrow2","x":"sharp_x","y":"sharp_y","tx":"sharp_tx","ty":"sharp_ty","label":"主体放这里"},"principle":"主体偏离中心一点，留出的空白会让画面更有呼吸感。","source":"构图基础 · 三分法"},
-    {"id":"M-closer","subs":["macro"],"when":"spread > 0.3","pri":3,"pen":8,"title":"主体太小","text":"再靠近一点，让主体占画面 1/3 以上","picto":"closer","principle":"拍得不够好，往往是因为离得不够近。","source":"摄影格言 · 靠近"},
-
-    {"id":"C-dark","subs":["vista","city","macro"],"when":"mean < 55","pri":4,"pen":10,"title":"画面偏暗","text":"换到更亮的位置，或拿稳手机开夜景模式","picto":"dark","principle":"光线不足时手机会提高感光度，画面会出现噪点。","source":"曝光 · 基础"},
-    {"id":"C-bright","subs":["vista","city","macro"],"when":"hi > 0.12","pri":4,"pen":10,"title":"亮部过曝","text":"点一下画面最亮的地方，降低曝光","picto":"bright","principle":"过曝的区域是纯白的，后期也救不回来。","source":"曝光 · 高光优先"},
-
-    {"id":"P-noperson","subs":["full","half","travel","sit","selfie"],"when":"!has_person && has_human","pri":6,"pen":0,"title":"还没找到人物","text":"{sub === 'selfie' ? '把脸放进椭圆框里' : '让人物完整进入画面，至少露出肩膀'}","picto":"noperson","principle":"","source":""},
-    {"id":"P-pos","subs":["full","travel","sit"],"when":"has_person && abs(p_cx - 0.5) > 0.05 && abs(pos_d) > 0.06","pri":2,"pen":15,"title":"{pos_d > 0 ? '手机向左平移一点' : '手机向右平移一点'}","text":"让人物落在{pos_t < 0.5 ? '左' : '右'}侧三分线上","picto":"panLeft","flip":"pos_d < 0","draw":{"type":"move","x":"p_cx","y":"p_cy","tx":"pos_t"},"principle":"人物站在三分线上，另一侧留给风景，画面主次分明。","source":"人像 · 三分法"},
-    {"id":"P-headcut","subs":["full","half"],"when":"has_person && head_top < 0.02","pri":3,"pen":12,"title":"头顶快被切到了","text":"手机稍微往上抬，头顶留一点空","picto":"headCut","draw":{"type":"band"},"principle":"头顶被切会让画面显得局促，全身和半身照都要给头顶留一点空间。","source":"人像 · 留白"},
-    {"id":"P-headroom-full","subs":["full"],"when":"has_person && head_top > 0.15 && !(full && ankle_y > 0.9)","pri":3,"pen":10,"title":"头顶空太多","text":"手机往下压一点，或者走近一步","picto":"headroom","draw":{"type":"headroom","y":"head_top"},"principle":"头顶留白太多，人会显得矮小，画面也空。","source":"人像 · 留白"},
-    {"id":"P-headroom-half","subs":["half"],"when":"has_person && head_top > 0.2","pri":3,"pen":10,"title":"头顶空太多","text":"手机往下压一点，或者走近一步","picto":"headroom","draw":{"type":"headroom","y":"head_top"},"principle":"半身照的重点是脸和上半身，头顶留一点就够。","source":"人像 · 留白"},
-    {"id":"F-nofeet","subs":["full"],"when":"has_person && !full && knee_y >= 0","pri":3,"pen":10,"title":"脚没拍进来","text":"全身照要拍到脚：手机往下一点，或后退一步","picto":"feet","draw":{"type":"cut","y":"min(0.97, knee_y)","label":"脚没拍进来"},"principle":"全身照切掉脚，会显得腿短，画面也不完整。","source":"人像 · 截取位置"},
-    {"id":"F-feet","subs":["full"],"when":"has_person && full && ankle_y > 0.97","pri":3,"pen":10,"title":"脚快被切掉了","text":"手机往上抬一点，脚下留出空间","picto":"feet","draw":{"type":"cut","y":"ankle_y","label":"脚下留点空"},"principle":"脚尖贴着画面边缘会显得局促，留一点空间更舒展。","source":"人像 · 截取位置"},
-    {"id":"F-legs","subs":["full"],"when":"has_person && full && ankle_y < 0.88","pri":4,"pen":4,"title":"脚离底边太远","text":"手机降到腰部高度、稍微仰拍，脚踩在画面底边附近更显腿长","picto":"legs","draw":{"type":"guideH","y":"0.95","from":"ankle_y","label":"脚踩这条线"},"principle":"手机放低、脚放在画面底部，透视会把腿拉长，这是最实用的显高技巧。","source":"人像 · 显高透视"},
-    {"id":"H-eyes","subs":["half"],"when":"has_person && eye_y >= 0 && abs(eye_y - 1/3) > 0.06","pri":2,"pen":12,"title":"{eye_y > 1/3 ? '眼睛位置太低' : '眼睛位置太高'}","text":"{eye_y > 1/3 ? '手机往下压一点' : '手机往上抬一点'}，眼睛放到上三分线","picto":"eyes","draw":{"type":"guideH","y":"1/3","from":"eye_y","label":"眼睛放这里"},"principle":"眼睛是人像的焦点，放在上三分线上最自然。","source":"人像 · 眼睛线"},
-    {"id":"H-elbow","subs":["half"],"when":"has_person && elbow_y > 0.92 && elbow_y < 1","pri":3,"pen":10,"title":"在手肘处截断","text":"截在腰部或胯部，别正好切在手肘","picto":"elbow","draw":{"type":"cut","y":"elbow_y","label":"别切在手肘"},"principle":"在关节处截断画面会让人看起来像被“截肢”，截在关节之间更自然。","source":"人像 · 截取位置"},
-    {"id":"H-turn","subs":["half"],"when":"has_person && square","pri":5,"pen":4,"title":"身体正对镜头","text":"身体侧转 30°，脸转回镜头，更显瘦","picto":"turn","principle":"肩膀正对镜头会显宽，侧一点身体更立体、更显瘦。","source":"人像 · 姿态"},
-    {"id":"T-toobig","subs":["travel"],"when":"has_person && height_ratio > 0.42","pri":2,"pen":12,"title":"人占得太大","text":"后退几步，或让人走远一点，多留风景","picto":"toobig","draw":{"type":"sizebox","x":"p_cx"},"principle":"打卡照要交代“在哪儿”，人占画面 1/4 到 1/3 高，风景才有存在感。","source":"旅行摄影 · 人景比例"},
-    {"id":"T-neck","subs":["travel"],"when":"has_person && has_hz && abs(hz_y - neck_y) < 0.03","pri":3,"pen":10,"title":"地平线穿过脖子","text":"手机升高或降低一点，让地平线避开脖子","picto":"neck","draw":{"type":"guideH","y":"hz_y","color":"warn","label":"避开脖子"},"principle":"地平线横穿脖子，会产生“砍头”的视觉感受。","source":"人像 · 背景线条"},
-    {"id":"I-level","subs":["sit"],"when":"has_person && eye_y > 0.5","pri":2,"pen":10,"title":"在俯拍坐着的人","text":"手机降低到坐着的人眼睛高度，平视拍","picto":"sitlevel","principle":"站着拍坐着的人是俯拍，会显得人矮、头大。蹲下来平视更自然。","source":"人像 · 拍摄高度"},
-    {"id":"I-knees","subs":["sit"],"when":"has_person && thigh_short","pri":3,"pen":8,"title":"膝盖对着镜头","text":"腿斜着伸出去，别让膝盖正对镜头","picto":"knees","principle":"膝盖正对镜头时腿会被透视压缩，看起来很短。","source":"人像 · 坐姿"},
-    {"id":"Y-far","subs":["selfie"],"when":"has_person && face_w > 0.55","pri":2,"pen":10,"title":"离得太近了","text":"手机拿远一点，把脸放进椭圆框","picto":"oval","draw":{"type":"oval"},"principle":"前置镜头是广角，离太近会让鼻子变大、脸变形。","source":"自拍 · 镜头畸变"},
-    {"id":"Y-near","subs":["selfie"],"when":"has_person && face_w < 0.2","pri":3,"pen":6,"title":"脸太小了","text":"手机拿近一点，把脸放进椭圆框","picto":"oval","draw":{"type":"oval"},"principle":"自拍的主角是脸，太小就看不清表情。","source":"自拍 · 构图"},
-    {"id":"Y-pos","subs":["selfie"],"when":"has_person && (abs(face_x - 0.5) > 0.1 || abs(face_y - 0.38) > 0.1)","pri":2,"pen":10,"title":"脸没在框里","text":"{abs(face_x - 0.5) >= abs(face_y - 0.38) ? (face_x > 0.5 ? '手机向右移一点' : '手机向左移一点') : (face_y > 0.38 ? '手机往下压一点' : '手机往上抬一点')}，让脸进入椭圆框","picto":"oval","draw":{"type":"oval"},"principle":"脸在画面上方三分之一处，构图最舒服。","source":"自拍 · 构图"},
-    {"id":"P-backlight","subs":["full","half","travel","sit","selfie"],"when":"has_person && face_dark","pri":2,"pen":15,"title":"人物脸偏暗（逆光）","text":"{sub === 'selfie' ? '转身面向光源，让光照到脸上' : '两人一起转身 45° 变侧光，或点一下脸部测光'}","picto":"backlight","draw":{"type":"box","r":"face_rect"},"principle":"光从背后来，脸就会发黑。侧光最能表现脸部立体感。","source":"用光 · 光位"},
-    {"id":"P-pose","subs":["full","half","travel","sit","selfie"],"when":"pose_on && pose_score >= 0 && pose_score < 75","pri":5,"pen":"round((75 - pose_score)/3)","title":"姿势相似度 {pose_score}%","text":"{pose_hint}","picto":"pose","draw":{"type":"pose","short":"pose_short","pt":"pose_pt"},"drawWhen":"pose_pt && pose_short","principle":"先模仿成熟的姿势，比自己想姿势容易得多。","source":"人像 · 姿势"},
-    {"id":"P-poseok","subs":["full","half","travel","sit","selfie"],"when":"pose_on && pose_score >= 75","pri":8,"pen":0,"title":"姿势到位 {pose_score}%","text":"可以拍了","picto":"poseOk","principle":"","source":""},
-    {"id":"P-dark","subs":["full","half","travel","sit","selfie"],"when":"has_person && mean < 55","pri":4,"pen":10,"title":"画面偏暗","text":"换到更亮的位置","picto":"dark","principle":"人像需要足够的光，脸部才干净。","source":"曝光 · 基础"},
-    {"id":"P-bright","subs":["full","half","travel","sit","selfie"],"when":"has_person && hi > 0.12","pri":4,"pen":10,"title":"亮部过曝","text":"点一下人物的脸测光","picto":"bright","principle":"人像以脸部正常曝光为准。","source":"曝光 · 测光"},
-
-    {"id":"tip-vista-1","kind":"tip","subs":["vista"],"title":"风景小技巧","text":"日出后、日落前一小时光线最柔和，风景最出片","principle":"黄金时段太阳角度低，光线暖、影子长，层次最丰富。","source":"风光摄影 · 黄金时段"},
-    {"id":"tip-vista-2","kind":"tip","subs":["vista"],"title":"风景小技巧","text":"找一条路、一条河或一排树，让它把视线引向远方","principle":"引导线会带着观众的视线走进画面深处。","source":"构图基础 · 引导线"},
-    {"id":"tip-vista-3","kind":"tip","subs":["vista"],"title":"风景小技巧","text":"远处有一个小小的人，能衬托出风景的辽阔","principle":"人是大家熟悉的尺度参照，用来对比山海的体量。","source":"风光摄影 · 尺度感"},
-    {"id":"tip-vista-4","kind":"tip","subs":["vista"],"title":"风景小技巧","text":"横着拍更有开阔感，竖着拍更适合手机屏幕和高耸的山","principle":"画幅方向会影响画面的情绪：横幅舒展，竖幅挺拔。","source":"构图基础 · 画幅"},
-    {"id":"tip-city-1","kind":"tip","subs":["city"],"title":"建筑小技巧","text":"用门洞、窗框、树枝把建筑框起来，画面更有故事感","principle":"框架构图能聚焦主体，也增加了前后层次。","source":"构图基础 · 框架构图"},
-    {"id":"tip-city-2","kind":"tip","subs":["city"],"title":"建筑小技巧","text":"要么完全平视，要么大胆贴地仰拍，最怕仰一半","principle":"轻微的透视变形像拍歪了，夸张的透视才像有意为之。","source":"建筑摄影 · 透视"},
-    {"id":"tip-city-3","kind":"tip","subs":["city"],"title":"建筑小技巧","text":"日落后 20 分钟是“蓝调时刻”，天空深蓝、灯光刚亮，城市最好看","principle":"蓝调时刻天空和人造光亮度接近，画面明暗均衡。","source":"城市摄影 · 蓝调时刻"},
-    {"id":"tip-city-4","kind":"tip","subs":["city"],"title":"建筑小技巧","text":"找重复的窗户、柱子和台阶，拍出节奏感","principle":"重复的元素会形成图案，带来秩序和韵律。","source":"构图基础 · 重复与韵律"},
-    {"id":"tip-sunset-1","kind":"tip","subs":["sunset"],"title":"日落小技巧","text":"太阳落下后别急着走，10~20 分钟后的晚霞往往更美","principle":"太阳在地平线以下时，云层被从下方照亮，颜色最浓。","source":"风光摄影 · 晚霞"},
-    {"id":"tip-sunset-2","kind":"tip","subs":["sunset"],"title":"日落小技巧","text":"有云的天气才有好晚霞，万里无云反而单调","principle":"云是晚霞的“画布”，没有云就没有色彩层次。","source":"风光摄影 · 天气"},
-    {"id":"tip-sunset-3","kind":"tip","subs":["sunset"],"title":"日落小技巧","text":"找一棵树、一座桥或一个人做前景，拍成剪影","principle":"剪影能给日落加上主体，避免只有一片天空。","source":"风光摄影 · 剪影"},
-    {"id":"tip-sunset-4","kind":"tip","subs":["sunset"],"title":"日落小技巧","text":"不要直视太阳太久，也别让镜头长时间对着正午的太阳","principle":"保护眼睛，也保护手机的感光元件。","source":"安全提示"},
-    {"id":"tip-night-1","kind":"tip","subs":["night"],"title":"夜景小技巧","text":"开启夜景模式，按快门后保持 2 秒不动","principle":"夜景模式需要连拍几张再合成，中途移动会糊。","source":"夜景 · 手机算法"},
-    {"id":"tip-night-2","kind":"tip","subs":["night"],"title":"夜景小技巧","text":"雨后的地面有倒影，蹲低拍，灯光翻倍","principle":"倒影让画面上下呼应，也增加了光点。","source":"夜景 · 倒影"},
-    {"id":"tip-night-3","kind":"tip","subs":["night"],"title":"夜景小技巧","text":"别让路灯直射镜头，容易出现光斑和眩光","principle":"强光直射镜头会在玻璃之间反射，形成鬼影。","source":"夜景 · 眩光"},
-    {"id":"tip-night-4","kind":"tip","subs":["night"],"title":"夜景小技巧","text":"擦一下镜头再拍，指纹会让灯光糊成一团","principle":"镜头上的油污会把点光源散射成一片雾。","source":"器材 · 清洁"},
-    {"id":"tip-night-5","kind":"tip","subs":["night"],"title":"夜景小技巧","text":"想要最好的效果，用小米相机的「夜景」模式拍，再点「相册」导入，这里帮你点评构图","principle":"系统相机的夜景模式能直接控制传感器长曝光，画质比网页能拿到的视频画面更好。","source":"夜景 · 系统相机"},
-    {"id":"tip-macro-1","kind":"tip","subs":["macro"],"title":"特写小技巧","text":"逆着光拍花瓣和树叶，会更通透、更亮","principle":"薄的花瓣在逆光下透光，颜色和纹理都更明显。","source":"静物 · 逆光"},
-    {"id":"tip-macro-2","kind":"tip","subs":["macro"],"title":"特写小技巧","text":"蹲下来，和花保持同一高度拍","principle":"平视角度更有代入感，也更容易得到干净的背景。","source":"静物 · 视角"},
-    {"id":"tip-macro-3","kind":"tip","subs":["macro"],"title":"特写小技巧","text":"点一下屏幕上的花对焦，再拍","principle":"近距离拍摄景深很浅，对焦点稍偏就会糊。","source":"静物 · 对焦"},
-    {"id":"tip-macro-4","kind":"tip","subs":["macro"],"title":"特写小技巧","text":"雨后或清晨有露水，花草最有生气","principle":"水珠会反射光线，给画面增加亮点。","source":"静物 · 时机"},
-    {"id":"tip-full-1","kind":"tip","subs":["full"],"title":"全身照小技巧","text":"让人边走边拍，比站着摆姿势更自然","principle":"动态中的身体更放松，表情也更真实。","source":"人像 · 抓拍"},
-    {"id":"tip-full-2","kind":"tip","subs":["full"],"title":"全身照小技巧","text":"让人看向画面空着的那一侧","principle":"视线方向留出空间，画面才不憋。","source":"人像 · 视线空间"},
-    {"id":"tip-full-3","kind":"tip","subs":["full"],"title":"全身照小技巧","text":"衣服颜色和背景拉开对比，人更跳","principle":"颜色对比能让主体从背景中分离出来。","source":"人像 · 色彩"},
-    {"id":"tip-full-4","kind":"tip","subs":["full"],"title":"全身照小技巧","text":"重心放在后脚，前脚脚尖点地，腿更显长","principle":"重心后移会让身体形成自然的曲线。","source":"人像 · 姿态"},
-    {"id":"tip-half-1","kind":"tip","subs":["half"],"title":"半身照小技巧","text":"面向窗户站，眼睛里会有亮亮的眼神光","principle":"眼神光让眼睛看起来有神。","source":"人像 · 眼神光"},
-    {"id":"tip-half-2","kind":"tip","subs":["half"],"title":"半身照小技巧","text":"下巴微微往前伸再往下收，下颌线更清晰","principle":"这个动作能拉开下巴和脖子的距离，避免双下巴。","source":"人像 · 姿态"},
-    {"id":"tip-half-3","kind":"tip","subs":["half"],"title":"半身照小技巧","text":"让手有事做：拿杯子、扶眼镜、整理头发","principle":"手放着不动会显得僵硬，有动作就自然了。","source":"人像 · 手部"},
-    {"id":"tip-half-4","kind":"tip","subs":["half"],"title":"半身照小技巧","text":"人离背景远一点，背景更虚，人更突出","principle":"主体和背景距离越大，背景虚化越明显。","source":"人像 · 背景虚化"},
-    {"id":"tip-travel-1","kind":"tip","subs":["travel"],"title":"打卡小技巧","text":"先找好地标的位置，再让人站过去，别挡住招牌","principle":"打卡照的重点是“人在哪里”，地标要拍清楚。","source":"旅行摄影 · 地标"},
-    {"id":"tip-travel-2","kind":"tip","subs":["travel"],"title":"打卡小技巧","text":"背影照不用管表情，很适合不爱拍照的人","principle":"背影把注意力交给风景，人物成为观众的替身。","source":"旅行摄影 · 背影"},
-    {"id":"tip-travel-3","kind":"tip","subs":["travel"],"title":"打卡小技巧","text":"游客多时，往前走几步，用长焦把人群排除在外","principle":"长焦视角窄，更容易避开杂乱的背景。","source":"旅行摄影 · 避开人群"},
-    {"id":"tip-travel-4","kind":"tip","subs":["travel"],"title":"打卡小技巧","text":"让道路或栏杆指向人物","principle":"引导线把观众的视线带到人物身上。","source":"构图基础 · 引导线"},
-    {"id":"tip-sit-1","kind":"tip","subs":["sit"],"title":"坐姿小技巧","text":"坐在台阶或椅子的边缘，背挺直，人更精神","principle":"坐满会让身体塌下去，坐边缘更挺拔。","source":"人像 · 坐姿"},
-    {"id":"tip-sit-2","kind":"tip","subs":["sit"],"title":"坐姿小技巧","text":"一条腿伸直，一条腿弯曲，比两条腿并拢好看","principle":"高低不同的腿部线条会形成节奏。","source":"人像 · 坐姿"},
-    {"id":"tip-sit-3","kind":"tip","subs":["sit"],"title":"坐姿小技巧","text":"身体稍微往前倾，看起来更亲近","principle":"前倾的身体语言传达出兴趣和亲近感。","source":"人像 · 身体语言"},
-    {"id":"tip-sit-4","kind":"tip","subs":["sit"],"title":"坐姿小技巧","text":"侧身坐，比正对镜头更显瘦","principle":"侧面的身体轮廓更窄、更有曲线。","source":"人像 · 坐姿"},
-    {"id":"tip-selfie-1","kind":"tip","subs":["selfie"],"title":"自拍小技巧","text":"手机举到比眼睛略高，斜向下 15°，下巴微收","principle":"略高的机位会让脸显小、眼睛显大。","source":"自拍 · 机位"},
-    {"id":"tip-selfie-2","kind":"tip","subs":["selfie"],"title":"自拍小技巧","text":"靠近窗户自拍，自然光最显皮肤好","principle":"窗户是柔和的大面积光源，能减少脸上的阴影。","source":"自拍 · 光线"},
-    {"id":"tip-selfie-3","kind":"tip","subs":["selfie"],"title":"自拍小技巧","text":"眼睛看镜头而不是屏幕，照片里才是在看你","principle":"前置镜头在屏幕上方，看屏幕时眼神会往下。","source":"自拍 · 眼神"},
-    {"id":"tip-selfie-4","kind":"tip","subs":["selfie"],"title":"自拍小技巧","text":"一次多拍几张，换几个角度，再挑最好的","principle":"细微的角度差别对自拍效果影响很大。","source":"自拍 · 方法"}
-  ]
+ "version": "0.2.0",
+ "updated": "2026-10-10",
+ "source_books": [
+  {
+   "id": "B1",
+   "title": "10天学会手机摄影（手机摄影技巧全书）",
+   "author": "杨精坤（玩转轻摄影）",
+   "approx_year": "2015",
+   "notes": "面向2015年前后机型；HDR、夜景、虚化相关结论按当前手机能力做了修正，见各规则 confidence 与 note 字段"
+  },
+  {
+   "id": "B2",
+   "title": "美国纽约摄影学院摄影教材（上、下册）",
+   "author": "美国纽约摄影学院（NYIP）著，中国摄影出版社译",
+   "approx_year": "2009（修订版）",
+   "notes": "胶片/单反时代教材；只采用与手机取景相关的章节：眼力与构图、对焦景深与快门、特殊曝光、自然光与现场光、人像布光与姿势、实景人像、儿童宠物、建筑、花卉、食品、体育、数码相机使用。暗室、胶片、多灯布光计算、商业经营等未采用"
+  }
+ ],
+ "display_policy": {
+  "max_overlays_on_screen": 2,
+  "max_text_tips_on_screen": 1,
+  "tip_max_chars": 18,
+  "same_rule_cooldown_s": 4,
+  "min_stable_frames_before_tip": 8,
+  "dismissed_rule_mute_s": 120,
+  "order": "priority 升序；同级按 confidence（high>medium>low）；再按触发强度",
+  "suppression": "命中的规则若带 suppresses 字段，被列出的规则本帧不显示"
+ },
+ "priority_levels": {
+  "1": "拍糊风险（抖动、跑焦）——必须先解决",
+  "2": "曝光与光线硬伤（过曝/死黑/炫光）",
+  "3": "构图主要问题（地平线、主体位置、杂乱）",
+  "4": "构图与用光的优化建议",
+  "5": "创意与机会提示（黄金时刻、黑白、剪影等）"
+ },
+ "signals": {
+  "scene": "场景分类：landscape|portrait|selfie|group|child|pet|plant_flower|food_still|building|interior|street|sports|night|water|macro",
+  "horizon_detected": "bool，是否检测到地平线/海平线",
+  "horizon_tilt_abs_deg": "地平线与水平夹角绝对值（度），可用陀螺仪辅助",
+  "horizon_y_ratio": "地平线在画面中的纵向位置，0=顶 1=底",
+  "sky_texture": "0-1，天空云层/色彩丰富度",
+  "subject_detected": "bool，是否有显著主体",
+  "subject_center": "{x,y} 0-1，主体中心",
+  "subject_area_ratio": "主体框面积/画面面积",
+  "subject_dist_to_center": "主体中心到画面中心的归一化距离",
+  "subject_bottom_y": "主体框底边纵向位置",
+  "background_clutter": "0-1，主体外区域的边缘密度/杂乱度",
+  "plain_bg_ratio": "0-1，低纹理纯净背景占比（天空、白墙等）",
+  "element_count": "画面中显著物体个数",
+  "symmetry_score": "0-1，左右（或上下倒影）对称度",
+  "symmetry_axis_offset": "对称轴相对画面中线的偏移，-0.5~0.5",
+  "leading_lines_score": "0-1，汇聚线条强度",
+  "diagonal_line_score": "0-1，主要线条沿对角线程度",
+  "dominant_line_angle_deg": "画面主线条角度，0=水平 90=竖直",
+  "s_curve_score": "0-1，S形曲线（小路、河流）",
+  "frame_border_score": "0-1，四周暗、中间亮的门窗式画框结构",
+  "shadow_boundary_score": "0-1，画面中清晰的明暗分割线",
+  "foreground_ratio": "画面下部虚化/单调前景的占比",
+  "depth_range": "近景与远景距离比（有深度图时）",
+  "focus_point_on_subject": "bool，当前对焦点是否落在主体框内",
+  "focus_point_is_far": "bool，对焦点在远景",
+  "focus_distance_m": "对焦距离（米），无则用估计值",
+  "focus_failed_plain": "bool，对准纯色区域导致对焦失败/反复拉风箱",
+  "face_count": "人脸数",
+  "face_area_ratio": "最大人脸面积占比",
+  "eyes_in_focus_region": "bool，对焦区域是否覆盖眼睛",
+  "face_highlight_clip": "0-1，脸部过曝比例",
+  "face_hard_shadow": "0-1，脸部硬阴影强度",
+  "subject_idle_s": "人物姿态无变化持续秒数",
+  "device_pitch_deg": "手机俯仰角，负=朝下拍，正=朝上拍",
+  "camera_below_face": "bool，自拍时镜头低于下巴",
+  "highlight_clip_ratio": "过曝像素占比",
+  "shadow_clip_ratio": "死黑像素占比",
+  "mean_luma": "画面平均亮度 0-1",
+  "bright_area_ratio": "接近白色的区域占比（雪、白墙、阴天天空）",
+  "dark_area_ratio": "接近黑色的区域占比",
+  "subject_luma_vs_bg": "主体亮度/背景亮度",
+  "light_direction": "front|side|back|top|unknown，可由主体明暗分布+太阳方位估计",
+  "sun_in_frame": "bool",
+  "flare_score": "0-1，炫光/发灰程度",
+  "time_phase": "golden_hour|midday|normal|blue_hour|night，由本地时间+定位计算日出日落",
+  "weather_overcast": "bool，阴天/雨后（亮度均匀、色温偏冷、无硬阴影）",
+  "color_cast_score": "0-1，严重偏色（钨丝灯、霓虹）",
+  "colorfulness_chaos": "0-1，颜色种类多且分散",
+  "translucent_subject": "bool，树叶、花瓣等半透明主体",
+  "device_shake": "0-1，陀螺仪抖动强度",
+  "device_stable_s": "手机保持静止的秒数（三脚架/靠墙）",
+  "subject_motion": "0-1，主体运动强度（光流）",
+  "exposure_time_s": "当前曝光时间（秒）",
+  "digital_zoom_x": "数码变焦倍数",
+  "hdr_on": "bool",
+  "moving_light_or_water": "bool，画面中有车流灯光或流水",
+  "symmetry_axis_offset_abs": "symmetry_axis_offset 的绝对值",
+  "subject_frontal_rect": "bool，主体为正对镜头的矩形物体（建筑立面、餐盒）",
+  "person_back_view": "bool，检测到人体但为背影/无正脸",
+  "texture_pattern_score": "0-1，重复图案/纹理强度",
+  "edge_distractor": "bool，画面边缘有被切掉的杂物（后期用）",
+  "saturation_mean": "0-1，平均饱和度（后期用）",
+  "camera_vs_eye_deg": "相机相对被摄者眼睛的仰俯角（度），负=从下往上拍，正=从上往下拍；由人脸关键点+陀螺仪估计",
+  "face_yaw_abs_deg": "人脸左右转角绝对值（度），0=正对镜头",
+  "shoulders_square": "bool，双肩与画面平行、正对镜头（证件照式站姿）",
+  "focal_equiv_mm": "当前等效焦距（mm），主摄约24-26，2x约48-52",
+  "eyes_y": "主人脸双眼连线的纵向位置 0=顶 1=底",
+  "facing_space_ratio": "主体面朝/运动方向一侧留白 ÷ 背后一侧留白；<1 表示前方空间不足",
+  "limb_cut_at_joint": "bool，画面边缘正好切在脚踝、膝盖、手腕、脖子等关节处",
+  "head_merge_object": "bool，背景中的杆子/树干/路灯与人头重叠（“头上长树”）",
+  "face_dappled_light": "0-1，脸上斑驳光斑程度（树荫漏光）",
+  "face_modeling": "0-1，脸部明暗立体感；阴天/阴影下过低=脸平",
+  "glasses_glare": "0-1，眼镜片反光遮住眼睛的程度",
+  "skin_cast": "none|blue|green|orange，肤色偏色方向（阴影偏蓝、彩色墙面反射）",
+  "bg_bright_distractor": "0-1，主体外存在比主体更亮、更抢眼的亮斑",
+  "hair_bg_contrast": "0-1，头发与背后区域的明暗/颜色差异",
+  "face_heights_spread": "多人合影中人脸高度的离散程度（0=全在一条水平线）",
+  "gaze_agreement": "0-1，多人视线一致程度（都看镜头或都看同一处）",
+  "group_gap_ratio": "合影中相邻两人最大间隙 ÷ 平均脸宽",
+  "child_adult_pair": "bool，画面是一个大人+一个小孩",
+  "child_looks_camera": "bool，孩子看镜头",
+  "adult_looks_child": "bool，大人看着孩子",
+  "camera_above_subject_deg": "相机俯视主体的角度（度）；拍孩子/宠物时站着往下拍值大",
+  "subject_attention": "0-1，人/宠物注意力朝向镜头的程度",
+  "subject_class": "主体类别：person|child|dog|cat|bird|food|produce|flower|building|…",
+  "subject_mean_luma": "主体区域平均亮度 0-1（如黑猫、白狗的毛色）",
+  "subject_motion_dir": "toward|away|lateral|none，主体相对相机的运动方向",
+  "vertical_convergence": "0-1，建筑竖线向上汇聚（向后倒）程度",
+  "corner_centered": "bool，楼角正对画面中心、两个立面对称分开",
+  "foreground_obstacle": "0-1，电线杆/标志牌/车辆等遮挡主体的面积比例",
+  "person_count": "画面中人数",
+  "persons_are_subject": "bool，人物是拍摄主体（而非路过游客）",
+  "subject_bg_color_similarity": "0-1，主体与背景颜色/亮度相似度",
+  "subject_touches_edges": "主体框贴到画面边缘的边数 0-4",
+  "near_foreground_present": "bool，画面下部近处有前景物（花草、石头、栏杆等）",
+  "lens_obstruction": "0-1，画面角落出现模糊暗色遮挡（手指、手机壳）",
+  "moon_detected": "bool",
+  "moon_clipped": "bool，月亮过曝成白斑无纹理",
+  "fireworks_detected": "bool",
+  "focus_jump": "bool，对焦点在短时间内被闯入物抢走",
+  "single_side_light": "bool，室内只有一侧窗光/台灯照明，明暗对比明显",
+  "sky_ratio": "天空占画面比例",
+  "after_capture": "bool，拍摄完成后（用于拍后建议）"
+ },
+ "overlays": {
+  "level_line": "水平仪：一条随倾角转动的线，放平后变绿；params.axis=vertical 时提示竖线竖直",
+  "thirds_grid": "九宫格",
+  "target_point": "目标点圆环：提示把主体移到这里（params.target）",
+  "move_arrow": "方向箭头：提示手机往哪移（params.direction）",
+  "focus_box": "对焦框：闪烁提示点哪里（params.at）",
+  "ev_hint": "曝光小太阳 + 上/下箭头（params.dir）",
+  "sun_icon": "太阳方位小图标，提示绕到哪一侧（params.go_to）",
+  "hand_shield": "手掌遮挡图示，放在画面上沿",
+  "symmetry_axis": "竖直中轴线 + 当前偏移",
+  "diagonal_guide": "对角线/分割线引导",
+  "frame_highlight": "高亮识别到的门窗画框",
+  "height_icon": "手机高度提示：放低/举高（params.dir）",
+  "distance_hint": "靠近/后退提示（params.dir）",
+  "steady_icon": "握稳图示",
+  "burst_icon": "连拍按钮高亮",
+  "hdr_toggle": "HDR 开关高亮（params.to）",
+  "bw_preview": "黑白小预览窗",
+  "pose_silhouette": "姿势剪影轮播（params.poses）",
+  "banner": "顶部一句话提示，无图形",
+  "eye_line": "眼睛目标横线：提示把双眼放到这条线（params.y）",
+  "group_triangle": "三角形站位示意图，标出高/低位置",
+  "turn_hint": "身体侧转+头转回的小人示意（四分之三侧脸）"
+ },
+ "rules": [
+  {
+   "id": "STAB-001",
+   "category": "stability",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "device_shake",
+      ">=",
+      0.6
+     ],
+     [
+      "exposure_time_s",
+      ">=",
+      0.033
+     ]
+    ]
+   },
+   "problem": "光线偏暗时手在抖，照片会糊",
+   "overlay": {
+    "type": "steady_icon"
+   },
+   "tip": "双手握稳，或靠住墙和桌子",
+   "priority": 1,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·入门篇上·避免手抖；B2·L10现场光（靠墙、屏住呼吸）"
+  },
+  {
+   "id": "STAB-002",
+   "category": "stability",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "subject_motion",
+      ">=",
+      0.5
+     ],
+     [
+      "mean_luma",
+      "<",
+      0.25
+     ]
+    ]
+   },
+   "problem": "暗光下拍运动物体容易拖影",
+   "overlay": {
+    "type": "burst_icon"
+   },
+   "tip": "太暗了动的东西会糊，开连拍",
+   "priority": 1,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·入门篇上·避开移动的对象"
+  },
+  {
+   "id": "STAB-003",
+   "category": "stability",
+   "scenes": [
+    "child",
+    "pet",
+    "plant_flower",
+    "portrait",
+    "sports",
+    "street"
+   ],
+   "when": {
+    "all": [
+     [
+      "subject_motion",
+      ">=",
+      0.6
+     ],
+     [
+      "mean_luma",
+      ">=",
+      0.35
+     ]
+    ]
+   },
+   "problem": "跳跃、抛落叶、吹蒲公英这类瞬间单张很难抓住",
+   "overlay": {
+    "type": "burst_icon"
+   },
+   "tip": "按住连拍，事后挑最好的一张",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·创意拍摄·悬浮与抛洒；B2·L30体育（连拍）"
+  },
+  {
+   "id": "FOC-001",
+   "category": "focus",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "subject_detected",
+      "==",
+      true
+     ],
+     [
+      "focus_point_on_subject",
+      "==",
+      false
+     ]
+    ]
+   },
+   "problem": "对焦点不在主体上，主体会虚",
+   "overlay": {
+    "type": "focus_box",
+    "params": {
+     "at": "subject_center"
+    }
+   },
+   "tip": "先点一下主体，清楚了再拍",
+   "priority": 1,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·入门篇上下·对焦；B2·L3对焦"
+  },
+  {
+   "id": "FOC-002",
+   "category": "focus",
+   "scenes": [
+    "child",
+    "group",
+    "portrait",
+    "selfie"
+   ],
+   "when": {
+    "all": [
+     [
+      "face_count",
+      ">=",
+      1
+     ],
+     [
+      "eyes_in_focus_region",
+      "==",
+      false
+     ]
+    ]
+   },
+   "problem": "人像没对在眼睛上，整张照片发软",
+   "overlay": {
+    "type": "focus_box",
+    "params": {
+     "at": "eyes"
+    }
+   },
+   "tip": "对焦点放在眼睛上",
+   "priority": 1,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·人像·眼部对焦；B2·L3（人像对焦在眼睛）",
+   "suppresses": [
+    "FOC-001"
+   ]
+  },
+  {
+   "id": "FOC-003",
+   "category": "focus",
+   "scenes": [
+    "plant_flower",
+    "food_still",
+    "macro"
+   ],
+   "when": {
+    "all": [
+     [
+      "focus_distance_m",
+      "<",
+      0.08
+     ]
+    ]
+   },
+   "problem": "离得太近，低于最近对焦距离",
+   "overlay": {
+    "type": "distance_hint",
+    "params": {
+     "dir": "back"
+    }
+   },
+   "tip": "退后一点，再两指稍微放大",
+   "priority": 2,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "note": "近年手机多有微距镜头，可在检测到微距模式时关闭本规则",
+   "source": "B1·数码变焦·微距不要靠太近"
+  },
+  {
+   "id": "FOC-004",
+   "category": "focus",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "focus_failed_plain",
+      "==",
+      true
+     ]
+    ]
+   },
+   "problem": "对着蓝天、白墙等纯色区域对不上焦",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "先对同样远的物体，锁定后再构图",
+   "priority": 2,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·疑难解答·无法对焦"
+  },
+  {
+   "id": "FOC-005",
+   "category": "focus",
+   "scenes": [
+    "plant_flower",
+    "food_still"
+   ],
+   "when": {
+    "all": [
+     [
+      "focus_distance_m",
+      ">",
+      1.5
+     ],
+     [
+      "subject_area_ratio",
+      "<",
+      0.1
+     ],
+     [
+      "background_clutter",
+      ">=",
+      0.4
+     ]
+    ]
+   },
+   "problem": "离得太远，背景虚化不出来，主体不突出",
+   "overlay": {
+    "type": "distance_hint",
+    "params": {
+     "dir": "closer"
+    }
+   },
+   "tip": "靠近到半米内，背景会自然虚掉",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "high",
+   "note": "原书经验值：0.1~1.5m 才有明显虚化",
+   "source": "B1·三妙招·景深；B2·L3景深"
+  },
+  {
+   "id": "FOC-006",
+   "category": "focus",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "depth_range",
+      ">=",
+      4
+     ],
+     [
+      "focus_point_is_far",
+      "==",
+      true
+     ],
+     [
+      "subject_detected",
+      "==",
+      true
+     ]
+    ]
+   },
+   "problem": "有近景主体却对在远处，远近对比做不出来",
+   "overlay": {
+    "type": "focus_box",
+    "params": {
+     "at": "near_subject"
+    }
+   },
+   "tip": "对焦在近处，远处会虚化",
+   "priority": 4,
+   "detectability": "needs_depth",
+   "confidence": "high",
+   "source": "B1·构图中·远近对比；B2·L8选择性对焦"
+  },
+  {
+   "id": "EXP-001",
+   "category": "exposure",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "light_direction",
+      "==",
+      "back"
+     ],
+     [
+      "subject_luma_vs_bg",
+      "<",
+      0.35
+     ],
+     [
+      "time_phase",
+      "!=",
+      "golden_hour"
+     ]
+    ]
+   },
+   "problem": "逆光下主体发黑",
+   "overlay": {
+    "type": "focus_box",
+    "params": {
+     "at": "subject_dark_part"
+    }
+   },
+   "tip": "点一下暗处的主体，画面会变亮",
+   "priority": 2,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·入门篇下·按明暗测光；B2·L17户外人像、L30体育"
+  },
+  {
+   "id": "EXP-002",
+   "category": "exposure",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "bright_area_ratio",
+      ">=",
+      0.5
+     ],
+     [
+      "highlight_clip_ratio",
+      "<",
+      0.03
+     ],
+     [
+      "mean_luma",
+      "<",
+      0.6
+     ]
+    ]
+   },
+   "problem": "雪景、白花、白墙、天空背景容易被拍得灰暗",
+   "overlay": {
+    "type": "ev_hint",
+    "params": {
+     "dir": "up"
+    }
+   },
+   "tip": "白色多的画面，把亮度调高一点",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·入门篇下·曝光补偿"
+  },
+  {
+   "id": "EXP-003",
+   "category": "exposure",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "dark_area_ratio",
+      ">=",
+      0.5
+     ],
+     [
+      "shadow_clip_ratio",
+      "<",
+      0.05
+     ],
+     [
+      "mean_luma",
+      ">",
+      0.35
+     ]
+    ]
+   },
+   "problem": "黑色主体或黑背景容易被拍得发灰",
+   "overlay": {
+    "type": "ev_hint",
+    "params": {
+     "dir": "down"
+    }
+   },
+   "tip": "黑色多的画面，把亮度调低一点",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·入门篇下·曝光补偿"
+  },
+  {
+   "id": "EXP-004",
+   "category": "exposure",
+   "scenes": [
+    "landscape",
+    "building",
+    "night",
+    "street"
+   ],
+   "when": {
+    "all": [
+     [
+      "highlight_clip_ratio",
+      ">=",
+      0.08
+     ],
+     [
+      "shadow_clip_ratio",
+      ">=",
+      0.08
+     ],
+     [
+      "hdr_on",
+      "==",
+      false
+     ],
+     [
+      "subject_motion",
+      "<",
+      0.3
+     ]
+    ]
+   },
+   "problem": "天空和地面明暗差太大，顾此失彼",
+   "overlay": {
+    "type": "hdr_toggle",
+    "params": {
+     "to": "on"
+    }
+   },
+   "tip": "明暗差太大，打开HDR",
+   "priority": 2,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·入门篇上·HDR；疑难解答·何时开HDR；B2·L36（明暗差大拍两张合成）"
+  },
+  {
+   "id": "EXP-005",
+   "category": "exposure",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "hdr_on",
+      "==",
+      true
+     ],
+     [
+      "subject_motion",
+      ">=",
+      0.4
+     ]
+    ]
+   },
+   "problem": "HDR 多帧合成，拍运动物体会重影",
+   "overlay": {
+    "type": "hdr_toggle",
+    "params": {
+     "to": "off"
+    }
+   },
+   "tip": "有东西在动，先关掉HDR",
+   "priority": 2,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "note": "新机型 HDR 对运动处理好很多，可按机型白名单关闭",
+   "source": "B1·疑难解答·何时关HDR"
+  },
+  {
+   "id": "EXP-006",
+   "category": "exposure",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "mean_luma",
+      "<",
+      0.15
+     ]
+    ]
+   },
+   "problem": "光线太暗，噪点多、容易糊",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "太暗了：找个光源，或把手机放稳",
+   "priority": 2,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·入门篇上·确保光线充足"
+  },
+  {
+   "id": "LGT-001",
+   "category": "light",
+   "scenes": [
+    "plant_flower",
+    "food_still",
+    "portrait"
+   ],
+   "when": {
+    "all": [
+     [
+      "time_phase",
+      "==",
+      "midday"
+     ],
+     [
+      "highlight_clip_ratio",
+      ">=",
+      0.05
+     ],
+     [
+      "weather_overcast",
+      "==",
+      false
+     ]
+    ]
+   },
+   "problem": "正午直射阳光太硬，亮部细节和颜色会丢",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "阳光太硬，挪到阴影里拍",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "note": "原书另一招：用白纸或白纱巾挡光，可作为二级提示",
+   "source": "B1·光影·刺眼的强光；B2·L9（避开8-14点顶光）"
+  },
+  {
+   "id": "LGT-002",
+   "category": "light",
+   "scenes": [
+    "plant_flower",
+    "landscape",
+    "building"
+   ],
+   "when": {
+    "all": [
+     [
+      "light_direction",
+      "==",
+      "front"
+     ],
+     [
+      "time_phase",
+      "in",
+      [
+       "midday",
+       "normal"
+      ]
+     ]
+    ]
+   },
+   "problem": "顺光画面平、没立体感",
+   "overlay": {
+    "type": "sun_icon",
+    "params": {
+     "go_to": "side"
+    }
+   },
+   "tip": "顺光太平，绕到侧面试试",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·光影·刺眼的强光（侧光逆光更有层次）；B2·L9光的方向"
+  },
+  {
+   "id": "LGT-003",
+   "category": "light",
+   "scenes": [
+    "plant_flower"
+   ],
+   "when": {
+    "all": [
+     [
+      "translucent_subject",
+      "==",
+      true
+     ],
+     [
+      "light_direction",
+      "!=",
+      "back"
+     ],
+     [
+      "weather_overcast",
+      "==",
+      false
+     ]
+    ]
+   },
+   "problem": "树叶花瓣不逆光拍，颜色和纹理都一般",
+   "overlay": {
+    "type": "sun_icon",
+    "params": {
+     "go_to": "opposite"
+    }
+   },
+   "tip": "绕到对面逆光拍，叶脉会透亮",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·光影·注意太阳光的位置；B2·L26花卉（逆光半透明）"
+  },
+  {
+   "id": "LGT-004",
+   "category": "light",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "any": [
+     [
+      "sun_in_frame",
+      "==",
+      true
+     ],
+     [
+      "flare_score",
+      ">=",
+      0.5
+     ]
+    ]
+   },
+   "problem": "阳光直射镜头，画面发灰、出现光斑",
+   "overlay": {
+    "type": "hand_shield"
+   },
+   "tip": "用手挡住镜头上方的阳光",
+   "priority": 2,
+   "detectability": "realtime",
+   "confidence": "high",
+   "note": "用户若多次忽略，视为有意拍光晕，静默该规则",
+   "source": "B1·光影·避免阳光直射镜头；B2·L17（逆光时遮挡镜头）"
+  },
+  {
+   "id": "LGT-005",
+   "category": "light",
+   "scenes": [
+    "landscape",
+    "portrait",
+    "street"
+   ],
+   "when": {
+    "all": [
+     [
+      "time_phase",
+      "==",
+      "golden_hour"
+     ]
+    ]
+   },
+   "problem": "机会提示：日出日落前后半小时光线最好",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "黄金时刻，光线最好，多拍几张",
+   "priority": 5,
+   "detectability": "metadata",
+   "confidence": "high",
+   "source": "B1·光影·魔幻拍摄时刻；B2·L9（黎明、清晨低角度光）"
+  },
+  {
+   "id": "LGT-006",
+   "category": "light",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "color_cast_score",
+      ">=",
+      0.6
+     ]
+    ]
+   },
+   "problem": "灯光偏色严重，颜色失真",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "灯光偏色，靠近窗边自然光",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B1·光影·避免偏色严重的光线"
+  },
+  {
+   "id": "LGT-007",
+   "category": "light",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "shadow_boundary_score",
+      ">=",
+      0.6
+     ],
+     [
+      "subject_detected",
+      "==",
+      true
+     ]
+    ]
+   },
+   "problem": "机会提示：画面有清晰的明暗分割线",
+   "overlay": {
+    "type": "diagonal_guide",
+    "params": {
+     "along": "shadow_boundary"
+    }
+   },
+   "tip": "把主体放在明暗交界处",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B1·光影艺术·窗边分割光；B2·L10窗光侧光"
+  },
+  {
+   "id": "LGT-008",
+   "category": "light",
+   "scenes": [
+    "plant_flower"
+   ],
+   "when": {
+    "all": [
+     [
+      "weather_overcast",
+      "==",
+      true
+     ]
+    ]
+   },
+   "problem": "机会提示：阴天、雨后光线柔和，拍花颜色更好",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "阴天拍花，颜色最正",
+   "priority": 5,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·光影·刺眼的强光；B2·L26（多云最适合拍花）"
+  },
+  {
+   "id": "LGT-009",
+   "category": "light",
+   "scenes": [
+    "landscape",
+    "street",
+    "portrait"
+   ],
+   "when": {
+    "all": [
+     [
+      "light_direction",
+      "==",
+      "back"
+     ],
+     [
+      "time_phase",
+      "in",
+      [
+       "golden_hour",
+       "blue_hour"
+      ]
+     ],
+     [
+      "subject_luma_vs_bg",
+      "<",
+      0.2
+     ]
+    ]
+   },
+   "problem": "机会提示：可以拍剪影",
+   "overlay": {
+    "type": "focus_box",
+    "params": {
+     "at": "bright_sky"
+    }
+   },
+   "tip": "想拍剪影？点一下亮的天空",
+   "priority": 5,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·光影·日落剪影；黑白·拍摄剪影",
+   "suppresses": [
+    "EXP-001",
+    "EXP-004"
+   ]
+  },
+  {
+   "id": "COMP-001",
+   "category": "composition",
+   "scenes": [
+    "landscape",
+    "water",
+    "building",
+    "street"
+   ],
+   "when": {
+    "all": [
+     [
+      "horizon_detected",
+      "==",
+      true
+     ],
+     [
+      "horizon_tilt_abs_deg",
+      ">=",
+      1.5
+     ],
+     [
+      "horizon_tilt_abs_deg",
+      "<",
+      10
+     ]
+    ]
+   },
+   "problem": "地平线微微歪了，看起来像失误",
+   "overlay": {
+    "type": "level_line"
+   },
+   "tip": "放平手机",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "note": "倾斜≥10°视为有意斜构图，不提示",
+   "source": "B1·构图·横平竖直与斜线（推导规则）"
+  },
+  {
+   "id": "COMP-002",
+   "category": "composition",
+   "scenes": [
+    "landscape",
+    "water"
+   ],
+   "when": {
+    "all": [
+     [
+      "horizon_detected",
+      "==",
+      true
+     ],
+     [
+      "horizon_y_ratio",
+      ">=",
+      0.42
+     ],
+     [
+      "horizon_y_ratio",
+      "<=",
+      0.58
+     ],
+     [
+      "symmetry_score",
+      "<",
+      0.7
+     ]
+    ]
+   },
+   "problem": "地平线压在正中间，画面一分为二",
+   "overlay": {
+    "type": "move_arrow",
+    "params": {
+     "target_horizon_y": "sky_texture>=0.5 ? 0.667 : 0.333"
+    }
+   },
+   "tip": "天空好看就多留天，否则多留地",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·构图上·三分法（地平线放三分之一处）"
+  },
+  {
+   "id": "COMP-003",
+   "category": "composition",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "subject_detected",
+      "==",
+      true
+     ],
+     [
+      "subject_dist_to_center",
+      "<",
+      0.08
+     ],
+     [
+      "subject_area_ratio",
+      "<",
+      0.15
+     ]
+    ]
+   },
+   "problem": "小主体放在正中，画面呆板",
+   "overlay": {
+    "type": "target_point",
+    "params": {
+     "target": "nearest_third_point"
+    }
+   },
+   "tip": "把主角移到交叉点上",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·构图中·井字形；黄金法则11；B2·L8通过布局突出重点"
+  },
+  {
+   "id": "COMP-004",
+   "category": "composition",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "subject_dist_to_center",
+      "<",
+      0.08
+     ],
+     [
+      "subject_area_ratio",
+      ">=",
+      0.25
+     ],
+     [
+      "background_clutter",
+      "<",
+      0.35
+     ]
+    ]
+   },
+   "problem": "（豁免规则）主体大且背景干净，中央构图成立",
+   "overlay": null,
+   "tip": null,
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·构图中·中央构图；B2·L8（正中构图需有理由）",
+   "suppresses": [
+    "COMP-003"
+   ]
+  },
+  {
+   "id": "COMP-005",
+   "category": "composition",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "subject_detected",
+      "==",
+      true
+     ],
+     [
+      "subject_area_ratio",
+      "<",
+      0.08
+     ],
+     [
+      "background_clutter",
+      ">=",
+      0.5
+     ]
+    ]
+   },
+   "problem": "主体太小，淹没在杂乱背景里",
+   "overlay": {
+    "type": "distance_hint",
+    "params": {
+     "dir": "closer"
+    }
+   },
+   "tip": "再靠近点，让主角更大",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·构图·画面简洁突出主体；B2·L8（初学者最常见：站太远）、L30（把动作拍大）"
+  },
+  {
+   "id": "COMP-006",
+   "category": "composition",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "subject_detected",
+      "==",
+      true
+     ],
+     [
+      "background_clutter",
+      ">=",
+      0.65
+     ]
+    ]
+   },
+   "problem": "背景太乱，抢主体的视线",
+   "overlay": {
+    "type": "height_icon",
+    "params": {
+     "dir": "lower_or_change_angle"
+    }
+   },
+   "tip": "换个角度，找干净的背景",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "note": "二级提示可给出：放低手机以天空为背景 / 找东西遮挡背景 / 靠近",
+   "source": "B1·三妙招·构图凸显主题；B2·L8、L17、L26"
+  },
+  {
+   "id": "COMP-007",
+   "category": "composition",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "element_count",
+      ">=",
+      6
+     ],
+     [
+      "subject_area_ratio",
+      "<",
+      0.1
+     ]
+    ]
+   },
+   "problem": "元素太多，没有主次",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "东西太多，只留最想拍的",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B1·构图上·加法与减法；构图下·残缺式"
+  },
+  {
+   "id": "COMP-008",
+   "category": "composition",
+   "scenes": [
+    "plant_flower",
+    "food_still",
+    "street",
+    "portrait"
+   ],
+   "when": {
+    "all": [
+     [
+      "subject_detected",
+      "==",
+      false
+     ]
+    ]
+   },
+   "problem": "画面没有明确的主角",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "先找一个主角",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B1·构图上·好作品必须有主题"
+  },
+  {
+   "id": "COMP-009",
+   "category": "composition",
+   "scenes": [
+    "building",
+    "water",
+    "landscape",
+    "street"
+   ],
+   "when": {
+    "all": [
+     [
+      "symmetry_score",
+      ">=",
+      0.7
+     ],
+     [
+      "symmetry_axis_offset_abs",
+      ">=",
+      0.04
+     ]
+    ]
+   },
+   "problem": "对称画面没站在中轴线上，看起来歪",
+   "overlay": {
+    "type": "symmetry_axis"
+   },
+   "tip": "平移一下，站到正中轴线上",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·构图上·对称构图",
+   "suppresses": [
+    "COMP-002"
+   ]
+  },
+  {
+   "id": "COMP-010",
+   "category": "composition",
+   "scenes": [
+    "building",
+    "water",
+    "landscape"
+   ],
+   "when": {
+    "all": [
+     [
+      "symmetry_score",
+      ">=",
+      0.85
+     ],
+     [
+      "subject_motion",
+      "<",
+      0.1
+     ]
+    ]
+   },
+   "problem": "完全对称容易呆板",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "等只鸟或一条船进画面",
+   "priority": 5,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B1·构图上·适当打破对称"
+  },
+  {
+   "id": "COMP-011",
+   "category": "composition",
+   "scenes": [
+    "landscape",
+    "street",
+    "building"
+   ],
+   "when": {
+    "all": [
+     [
+      "leading_lines_score",
+      ">=",
+      0.6
+     ],
+     [
+      "device_pitch_deg",
+      ">",
+      -20
+     ]
+    ]
+   },
+   "problem": "机会提示：有延伸的线条（铁轨、道路、栏杆）",
+   "overlay": {
+    "type": "height_icon",
+    "params": {
+     "dir": "lower"
+    }
+   },
+   "tip": "放低手机贴近，线条会汇向远方",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·构图下·汇聚线；B2·L8汇聚线条"
+  },
+  {
+   "id": "COMP-012",
+   "category": "composition",
+   "scenes": [
+    "plant_flower",
+    "food_still",
+    "macro"
+   ],
+   "when": {
+    "all": [
+     [
+      "subject_detected",
+      "==",
+      true
+     ],
+     [
+      "dominant_line_angle_deg",
+      "in_range_any",
+      [
+       [
+        -5,
+        5
+       ],
+       [
+        85,
+        95
+       ]
+      ]
+     ],
+     [
+      "diagonal_line_score",
+      "<",
+      0.3
+     ]
+    ]
+   },
+   "problem": "线条横平竖直，画面平淡",
+   "overlay": {
+    "type": "diagonal_guide"
+   },
+   "tip": "斜着拍试试，更有活力",
+   "priority": 5,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B1·构图中下·对角线与斜线条"
+  },
+  {
+   "id": "COMP-013",
+   "category": "composition",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "frame_border_score",
+      ">=",
+      0.6
+     ]
+    ]
+   },
+   "problem": "机会提示：可以用门窗、树枝做画框",
+   "overlay": {
+    "type": "frame_highlight"
+   },
+   "tip": "主角放进这个“窗口”里",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B1·构图中·画框式；B2·L8搭画框"
+  },
+  {
+   "id": "COMP-014",
+   "category": "composition",
+   "scenes": [
+    "landscape",
+    "street"
+   ],
+   "when": {
+    "all": [
+     [
+      "s_curve_score",
+      ">=",
+      0.6
+     ]
+    ]
+   },
+   "problem": "机会提示：有S形小路或河流",
+   "overlay": {
+    "type": "diagonal_guide",
+    "params": {
+     "along": "s_curve"
+    }
+   },
+   "tip": "让弯道从画面角落延伸进来",
+   "priority": 4,
+   "detectability": "needs_model",
+   "confidence": "medium",
+   "source": "B1·构图中·S形曲线"
+  },
+  {
+   "id": "COMP-015",
+   "category": "composition",
+   "scenes": [
+    "building",
+    "food_still"
+   ],
+   "when": {
+    "all": [
+     [
+      "subject_detected",
+      "==",
+      true
+     ],
+     [
+      "subject_frontal_rect",
+      "==",
+      true
+     ],
+     [
+      "symmetry_score",
+      "<",
+      0.6
+     ]
+    ]
+   },
+   "problem": "正面拍方形物体，缺少立体感",
+   "overlay": {
+    "type": "move_arrow",
+    "params": {
+     "direction": "orbit_side"
+    }
+   },
+   "tip": "侧过来拍，更有立体感",
+   "priority": 5,
+   "detectability": "needs_model",
+   "confidence": "medium",
+   "source": "B1·构图中·三角形构图（侧面让矩形变三角）"
+  },
+  {
+   "id": "COMP-016",
+   "category": "composition",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "plain_bg_ratio",
+      ">=",
+      0.5
+     ],
+     [
+      "subject_area_ratio",
+      "<",
+      0.15
+     ],
+     [
+      "subject_dist_to_center",
+      "<",
+      0.08
+     ]
+    ]
+   },
+   "problem": "大面积留白很好，但主角放正中略呆",
+   "overlay": {
+    "type": "target_point",
+    "params": {
+     "target": "nearest_third_point"
+    }
+   },
+   "tip": "留白很好，主角放到三分线上",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B1·构图下·留白",
+   "suppresses": [
+    "COMP-003"
+   ]
+  },
+  {
+   "id": "COMP-017",
+   "category": "composition",
+   "scenes": [
+    "plant_flower",
+    "building",
+    "street"
+   ],
+   "when": {
+    "all": [
+     [
+      "device_pitch_deg",
+      "<=",
+      -45
+     ],
+     [
+      "subject_area_ratio",
+      "<",
+      0.3
+     ]
+    ]
+   },
+   "problem": "总是站着往下拍，视角太常规",
+   "overlay": {
+    "type": "height_icon",
+    "params": {
+     "dir": "lower"
+    }
+   },
+   "tip": "蹲低一点，平视或仰拍",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·摄影眼·换个角度；黄金法则10；疑难解答7；B2·L1（降低机位）"
+  },
+  {
+   "id": "COMP-018",
+   "category": "composition",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "foreground_ratio",
+      ">=",
+      0.4
+     ],
+     [
+      "subject_bottom_y",
+      "<",
+      0.55
+     ]
+    ]
+   },
+   "problem": "下方前景太多，挤占主体空间",
+   "overlay": {
+    "type": "move_arrow",
+    "params": {
+     "direction": "up"
+    }
+   },
+   "tip": "前景太多，镜头往上抬一点",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B1·后期思路·荷花案例（前景挤占主体）"
+  },
+  {
+   "id": "COMP-019",
+   "category": "composition",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "digital_zoom_x",
+      ">=",
+      4
+     ]
+    ]
+   },
+   "problem": "数码变焦倍数过高，画质下降明显",
+   "overlay": {
+    "type": "distance_hint",
+    "params": {
+     "dir": "closer"
+    }
+   },
+   "tip": "放大太多会糊，能走近就走近",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "note": "原书认为可接受范围内大胆用变焦；阈值按机型光学变焦倍数调整",
+   "source": "B1·入门篇上·数码变焦"
+  },
+  {
+   "id": "POR-001",
+   "category": "portrait",
+   "scenes": [
+    "child",
+    "group",
+    "portrait",
+    "selfie"
+   ],
+   "when": {
+    "any": [
+     [
+      "face_highlight_clip",
+      ">=",
+      0.1
+     ],
+     [
+      "face_hard_shadow",
+      ">=",
+      0.6
+     ]
+    ]
+   },
+   "problem": "脸上光太硬：过曝或有明显阴影",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "去树荫下，或背对太阳拍",
+   "priority": 2,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·人像·掌握光线；自拍·找好光源；B2·L9户外人像（眯眼、顶光）",
+   "suppresses": [
+    "LGT-001"
+   ]
+  },
+  {
+   "id": "POR-002",
+   "category": "portrait",
+   "scenes": [
+    "portrait"
+   ],
+   "when": {
+    "all": [
+     [
+      "face_count",
+      ">=",
+      1
+     ],
+     [
+      "time_phase",
+      "==",
+      "golden_hour"
+     ],
+     [
+      "light_direction",
+      "in",
+      [
+       "front",
+       "top"
+      ]
+     ]
+    ]
+   },
+   "problem": "黄金时刻顺光拍人，浪费了好光线",
+   "overlay": {
+    "type": "sun_icon",
+    "params": {
+     "go_to": "side_back"
+    }
+   },
+   "tip": "让TA侧身背光，发丝会发亮",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·人像·侧逆光尝试；B2·L17（逆光光环）",
+   "suppresses": [
+    "LGT-005"
+   ]
+  },
+  {
+   "id": "POR-003",
+   "category": "portrait",
+   "scenes": [
+    "child",
+    "group",
+    "portrait"
+   ],
+   "when": {
+    "all": [
+     [
+      "face_count",
+      ">=",
+      1
+     ],
+     [
+      "background_clutter",
+      ">=",
+      0.6
+     ],
+     [
+      "face_area_ratio",
+      ">=",
+      0.02
+     ]
+    ]
+   },
+   "problem": "人物背后太乱，人和背景混在一起",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "换面干净的墙或天空做背景",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·人像·选择合适背景；手机拍人难点；B2·L17实景人像（背景简洁）",
+   "suppresses": [
+    "COMP-006"
+   ]
+  },
+  {
+   "id": "POR-004",
+   "category": "portrait",
+   "scenes": [
+    "portrait"
+   ],
+   "when": {
+    "all": [
+     [
+      "face_count",
+      "==",
+      1
+     ],
+     [
+      "subject_idle_s",
+      ">=",
+      6
+     ]
+    ]
+   },
+   "problem": "模特僵住了，表情不自然",
+   "overlay": {
+    "type": "pose_silhouette",
+    "params": {
+     "poses": [
+      "拨头发",
+      "看向远处",
+      "侧脸闭眼",
+      "背影望远",
+      "低头浅笑",
+      "半遮脸"
+     ]
+    }
+   },
+   "tip": "聊天放松，让TA动起来再抓拍",
+   "priority": 5,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "note": "原书主张‘摆抓’：先定大致姿势，在动作中按快门",
+   "source": "B1·人像·摆抓；停止摆姿势；B2·L16指导被摄者、L20（聊天、鼓励、别喊“保持住”）"
+  },
+  {
+   "id": "POR-005",
+   "category": "portrait",
+   "scenes": [
+    "selfie"
+   ],
+   "when": {
+    "all": [
+     [
+      "camera_below_face",
+      "==",
+      true
+     ]
+    ]
+   },
+   "problem": "镜头在下巴以下，脸显大、显双下巴",
+   "overlay": {
+    "type": "height_icon",
+    "params": {
+     "dir": "raise"
+    }
+   },
+   "tip": "手机举高一点，斜45°往下拍",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B1·自拍·45度自拍；B2·L16（高机位可藏双下巴）"
+  },
+  {
+   "id": "POR-006",
+   "category": "portrait",
+   "scenes": [
+    "selfie"
+   ],
+   "when": {
+    "all": [
+     [
+      "face_count",
+      "==",
+      1
+     ],
+     [
+      "subject_idle_s",
+      ">=",
+      8
+     ]
+    ]
+   },
+   "problem": "机会提示：换个自拍花样",
+   "overlay": {
+    "type": "pose_silhouette",
+    "params": {
+     "poses": [
+      "侧脸",
+      "微仰头",
+      "用围巾或头发遮半脸"
+     ]
+    }
+   },
+   "tip": "试试侧脸，或遮住半张脸",
+   "priority": 5,
+   "detectability": "realtime",
+   "confidence": "low",
+   "note": "原书‘露左脸更好看’的说法缺乏可靠依据，未采用，只保留‘试侧脸’",
+   "source": "B1·自拍·侧面拍、遮挡物"
+  },
+  {
+   "id": "POR-007",
+   "category": "portrait",
+   "scenes": [
+    "portrait",
+    "landscape"
+   ],
+   "when": {
+    "all": [
+     [
+      "face_count",
+      "==",
+      0
+     ],
+     [
+      "person_back_view",
+      "==",
+      true
+     ],
+     [
+      "subject_area_ratio",
+      "<",
+      0.08
+     ],
+     [
+      "plain_bg_ratio",
+      ">=",
+      0.4
+     ]
+    ]
+   },
+   "problem": "（正向确认）人小景大的背影构图",
+   "overlay": {
+    "type": "target_point",
+    "params": {
+     "target": "nearest_third_point"
+    }
+   },
+   "tip": "人小景大很有意境，放在三分线",
+   "priority": 5,
+   "detectability": "needs_model",
+   "confidence": "medium",
+   "source": "B1·人像·人与景的配合"
+  },
+  {
+   "id": "BW-001",
+   "category": "creative",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "colorfulness_chaos",
+      ">=",
+      0.7
+     ]
+    ]
+   },
+   "problem": "颜色太多太杂，画面显脏",
+   "overlay": {
+    "type": "bw_preview"
+   },
+   "tip": "颜色太杂，试试黑白",
+   "priority": 5,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·黑白摄影·适用情况1"
+  },
+  {
+   "id": "BW-002",
+   "category": "creative",
+   "scenes": [
+    "street",
+    "building",
+    "portrait"
+   ],
+   "when": {
+    "any": [
+     [
+      "shadow_boundary_score",
+      ">=",
+      0.7
+     ],
+     [
+      "texture_pattern_score",
+      ">=",
+      0.7
+     ]
+    ]
+   },
+   "problem": "机会提示：强烈光影或重复图案适合黑白",
+   "overlay": {
+    "type": "bw_preview"
+   },
+   "tip": "这个光影适合拍黑白",
+   "priority": 5,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B1·黑白摄影·反差、光源、轮廓图案、剪影"
+  },
+  {
+   "id": "CRE-001",
+   "category": "creative",
+   "scenes": [
+    "night",
+    "water",
+    "street"
+   ],
+   "when": {
+    "all": [
+     [
+      "device_stable_s",
+      ">=",
+      3
+     ],
+     [
+      "moving_light_or_water",
+      "==",
+      true
+     ]
+    ]
+   },
+   "problem": "机会提示：手机很稳，可以拍长曝光",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "手机够稳，试试拍光轨或丝滑流水",
+   "priority": 5,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B1·创意·长曝光；B2·L3（慢门拍水成丝绢）"
+  },
+  {
+   "id": "CRE-002",
+   "category": "creative",
+   "scenes": [
+    "landscape"
+   ],
+   "when": {
+    "all": [
+     [
+      "device_stable_s",
+      ">=",
+      5
+     ],
+     [
+      "sky_texture",
+      ">=",
+      0.6
+     ]
+    ]
+   },
+   "problem": "机会提示：云很漂亮且手机固定，可拍延时",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "云在动，试试延时摄影",
+   "priority": 5,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B1·创意·延时拍摄"
+  },
+  {
+   "id": "COMP-026",
+   "category": "stability",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "lens_obstruction",
+      ">=",
+      0.4
+     ]
+    ]
+   },
+   "problem": "手指或手机壳挡到了镜头角落",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "手指挡到镜头了",
+   "priority": 1,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B2·L8常见错误（手指挡镜头）"
+  },
+  {
+   "id": "FOC-007",
+   "category": "focus",
+   "scenes": [
+    "sports",
+    "street",
+    "pet",
+    "child"
+   ],
+   "when": {
+    "all": [
+     [
+      "focus_jump",
+      "==",
+      true
+     ]
+    ]
+   },
+   "problem": "有人或物闯入画面，自动对焦被抢走",
+   "overlay": {
+    "type": "focus_box",
+    "params": {
+     "at": "subject_center"
+    }
+   },
+   "tip": "长按主体，锁定对焦",
+   "priority": 2,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B2·L30体育（自动对焦被闯入者抢焦）；L36（半按/AF锁定）"
+  },
+  {
+   "id": "NGT-001",
+   "category": "exposure",
+   "scenes": [
+    "night",
+    "street",
+    "building"
+   ],
+   "when": {
+    "all": [
+     [
+      "dark_area_ratio",
+      ">=",
+      0.6
+     ],
+     [
+      "highlight_clip_ratio",
+      ">=",
+      0.05
+     ]
+    ]
+   },
+   "problem": "城市夜景大片黑夜把测光拉亮，灯光过曝成一团",
+   "overlay": {
+    "type": "ev_hint",
+    "params": {
+     "dir": "down"
+    }
+   },
+   "tip": "灯光过亮，把亮度调低一点",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "note": "与手机夜景模式并存：夜景模式开启时降为 priority 4",
+   "source": "B2·L5特殊场合的曝光（夜景灯光）"
+  },
+  {
+   "id": "NGT-002",
+   "category": "exposure",
+   "scenes": [
+    "night",
+    "landscape"
+   ],
+   "when": {
+    "all": [
+     [
+      "moon_detected",
+      "==",
+      true
+     ],
+     [
+      "moon_clipped",
+      "==",
+      true
+     ]
+    ]
+   },
+   "problem": "月亮被拍成白斑，没有纹理",
+   "overlay": {
+    "type": "focus_box",
+    "params": {
+     "at": "moon"
+    }
+   },
+   "tip": "点月亮，再把亮度调低",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "note": "二级提示：用最长焦距；月亮太小可提示拉近",
+   "source": "B2·L5（拍摄月亮）"
+  },
+  {
+   "id": "NGT-003",
+   "category": "creative",
+   "scenes": [
+    "night"
+   ],
+   "when": {
+    "all": [
+     [
+      "fireworks_detected",
+      "==",
+      true
+     ]
+    ]
+   },
+   "problem": "拍烟花：手抖会糊，前景路灯会抢光",
+   "overlay": {
+    "type": "steady_icon"
+   },
+   "tip": "放稳手机，避开前景路灯",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B2·L5（烟花、闪电）"
+  },
+  {
+   "id": "NGT-004",
+   "category": "light",
+   "scenes": [
+    "interior",
+    "portrait"
+   ],
+   "when": {
+    "all": [
+     [
+      "single_side_light",
+      "==",
+      true
+     ],
+     [
+      "mean_luma",
+      ">=",
+      0.15
+     ],
+     [
+      "mean_luma",
+      "<",
+      0.35
+     ]
+    ]
+   },
+   "problem": "机会提示：单侧窗光/台灯有氛围，别把暗部硬提亮",
+   "overlay": {
+    "type": "focus_box",
+    "params": {
+     "at": "lit_side"
+    }
+   },
+   "tip": "点亮的那一侧，保留暗部氛围",
+   "priority": 5,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "note": "开启时抑制 EXP-006 的“找光源”提示",
+   "source": "B2·L10现场光（按亮部曝光、让阴影黑下去）",
+   "suppresses": [
+    "EXP-006"
+   ]
+  },
+  {
+   "id": "POR-008",
+   "category": "portrait",
+   "scenes": [
+    "portrait",
+    "group",
+    "child"
+   ],
+   "when": {
+    "all": [
+     [
+      "face_dappled_light",
+      ">=",
+      0.5
+     ]
+    ]
+   },
+   "problem": "树荫漏下的光斑落在脸上",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "脸上有光斑，挪到整片阴影里",
+   "priority": 2,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B2·L9自然光、L17户外人像"
+  },
+  {
+   "id": "POR-009",
+   "category": "portrait",
+   "scenes": [
+    "portrait"
+   ],
+   "when": {
+    "all": [
+     [
+      "face_count",
+      ">=",
+      1
+     ],
+     [
+      "face_modeling",
+      "<",
+      0.15
+     ],
+     [
+      "weather_overcast",
+      "==",
+      true
+     ]
+    ]
+   },
+   "problem": "阴天/阴影下光太平，脸没有立体感",
+   "overlay": {
+    "type": "sun_icon",
+    "params": {
+     "go_to": "face_bright_side"
+    }
+   },
+   "tip": "让TA侧对亮处，脸更立体",
+   "priority": 5,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B2·L17（多云光线平淡，从一侧45°加方向光/反光板）"
+  },
+  {
+   "id": "POR-010",
+   "category": "portrait",
+   "scenes": [
+    "portrait",
+    "group",
+    "child"
+   ],
+   "when": {
+    "all": [
+     [
+      "glasses_glare",
+      ">=",
+      0.3
+     ]
+    ]
+   },
+   "problem": "眼镜反光挡住眼睛",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "眼镜反光：微低下巴或侧转一点",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B2·L12闪光、L16（眼镜）"
+  },
+  {
+   "id": "POR-011",
+   "category": "portrait",
+   "scenes": [
+    "portrait",
+    "selfie",
+    "child"
+   ],
+   "when": {
+    "any": [
+     [
+      "skin_cast",
+      "==",
+      "blue"
+     ],
+     [
+      "skin_cast",
+      "==",
+      "green"
+     ]
+    ]
+   },
+   "problem": "阴影下或彩色墙面把肤色映成蓝/绿",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "肤色发青，换个背景或调暖",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B2·L9（阴影偏蓝）、L17注意混色光"
+  },
+  {
+   "id": "POR-012",
+   "category": "portrait",
+   "scenes": [
+    "portrait",
+    "group"
+   ],
+   "when": {
+    "all": [
+     [
+      "face_count",
+      ">=",
+      1
+     ],
+     [
+      "camera_vs_eye_deg",
+      "<=",
+      -15
+     ]
+    ]
+   },
+   "problem": "从下往上拍人：显傲慢、鼻孔大、下巴宽",
+   "overlay": {
+    "type": "height_icon",
+    "params": {
+     "dir": "raise"
+    }
+   },
+   "tip": "手机抬到和眼睛一样高",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "high",
+   "note": "想表现高大气势可故意仰拍；用户多次忽略后静默",
+   "source": "B2·L15、L16相机高度（眼平最自然）"
+  },
+  {
+   "id": "POR-013",
+   "category": "portrait",
+   "scenes": [
+    "portrait"
+   ],
+   "when": {
+    "all": [
+     [
+      "face_count",
+      "==",
+      1
+     ],
+     [
+      "face_yaw_abs_deg",
+      "<",
+      5
+     ],
+     [
+      "shoulders_square",
+      "==",
+      true
+     ]
+    ]
+   },
+   "problem": "正对镜头、双肩端平，像证件照",
+   "overlay": {
+    "type": "turn_hint"
+   },
+   "tip": "身体侧一点，脸转回镜头",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B2·L16（四分之三侧脸：身体斜45°，头转回到远侧耳朵刚好看不见）；L21（双肩端平显僵硬）"
+  },
+  {
+   "id": "POR-014",
+   "category": "portrait",
+   "scenes": [
+    "portrait",
+    "selfie",
+    "child",
+    "pet"
+   ],
+   "when": {
+    "all": [
+     [
+      "face_area_ratio",
+      ">=",
+      0.2
+     ],
+     [
+      "focal_equiv_mm",
+      "<=",
+      35
+     ]
+    ]
+   },
+   "problem": "广角贴近拍脸，鼻子变大、脸变形",
+   "overlay": {
+    "type": "distance_hint",
+    "params": {
+     "dir": "back"
+    }
+   },
+   "tip": "退后一步，换2倍拍脸",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "note": "自拍无法后退：改提示“手臂伸直一点”或启用后置2倍",
+   "source": "B2·L2“狗鼻子”、L12（至少1.2米）、L16（用中长焦拍头像）、L18宠物"
+  },
+  {
+   "id": "POR-015",
+   "category": "portrait",
+   "scenes": [
+    "portrait",
+    "selfie",
+    "child"
+   ],
+   "when": {
+    "any": [
+     [
+      "eyes_y",
+      "<",
+      0.18
+     ],
+     [
+      "eyes_y",
+      ">",
+      0.55
+     ]
+    ]
+   },
+   "problem": "头放得太高像被顶出画面，或太低像往下掉",
+   "overlay": {
+    "type": "eye_line",
+    "params": {
+     "y": 0.33
+    }
+   },
+   "tip": "眼睛放到上面三分之一处",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B2·L16在取景器中布局、L18（头部在中心偏上）"
+  },
+  {
+   "id": "POR-016",
+   "category": "portrait",
+   "scenes": [
+    "portrait",
+    "group",
+    "street"
+   ],
+   "when": {
+    "all": [
+     [
+      "limb_cut_at_joint",
+      "==",
+      true
+     ]
+    ]
+   },
+   "problem": "画面边缘正好切在脚踝、膝盖或手腕上",
+   "overlay": {
+    "type": "move_arrow",
+    "params": {
+     "direction": "include_or_crop_mid_limb"
+    }
+   },
+   "tip": "别在关节处切，全拍进或切到腿中段",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B2·L1（蹄子被切掉分散注意）、L8常见错误（取景太满、脚被切）"
+  },
+  {
+   "id": "POR-017",
+   "category": "portrait",
+   "scenes": [
+    "portrait",
+    "group",
+    "child",
+    "selfie"
+   ],
+   "when": {
+    "all": [
+     [
+      "head_merge_object",
+      "==",
+      true
+     ]
+    ]
+   },
+   "problem": "背景里的杆子/树干像从头上长出来",
+   "overlay": {
+    "type": "move_arrow",
+    "params": {
+     "direction": "sidestep"
+    }
+   },
+   "tip": "挪一步，别让杆子长在头上",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B2·L3景深（树长在老妇人头顶）、L8常见错误（头上长树）"
+  },
+  {
+   "id": "POR-018",
+   "category": "portrait",
+   "scenes": [
+    "portrait"
+   ],
+   "when": {
+    "all": [
+     [
+      "face_count",
+      ">=",
+      1
+     ],
+     [
+      "hair_bg_contrast",
+      "<",
+      0.12
+     ]
+    ]
+   },
+   "problem": "头发和背景颜色明暗太接近，融在一起",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "头发和背景太像，换深或浅背景",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B2·L15改变背景影调、L16选择背景"
+  },
+  {
+   "id": "GRP-001",
+   "category": "portrait",
+   "scenes": [
+    "group"
+   ],
+   "when": {
+    "all": [
+     [
+      "face_count",
+      ">=",
+      3
+     ],
+     [
+      "face_heights_spread",
+      "<",
+      0.05
+     ]
+    ]
+   },
+   "problem": "多人一字排开，像排队",
+   "overlay": {
+    "type": "group_triangle"
+   },
+   "tip": "高低错落，站成三角形",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B2·L18儿童二人照和集体照（三角形布局）"
+  },
+  {
+   "id": "GRP-002",
+   "category": "portrait",
+   "scenes": [
+    "group"
+   ],
+   "when": {
+    "all": [
+     [
+      "face_count",
+      ">=",
+      2
+     ],
+     [
+      "gaze_agreement",
+      "<",
+      0.5
+     ]
+    ]
+   },
+   "problem": "合影视线各看各的，画面不统一",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "让大家看同一个地方",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B2·L18（合影要统一：都看同一点）"
+  },
+  {
+   "id": "GRP-003",
+   "category": "portrait",
+   "scenes": [
+    "group"
+   ],
+   "when": {
+    "all": [
+     [
+      "face_count",
+      ">=",
+      2
+     ],
+     [
+      "group_gap_ratio",
+      ">",
+      1.0
+     ]
+    ]
+   },
+   "problem": "合影的人之间离得太远",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "靠近点，肩挨着肩",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B2·L18（成员紧挨、搭肩显亲密）"
+  },
+  {
+   "id": "GRP-004",
+   "category": "portrait",
+   "scenes": [
+    "group",
+    "child"
+   ],
+   "when": {
+    "all": [
+     [
+      "child_adult_pair",
+      "==",
+      true
+     ],
+     [
+      "child_looks_camera",
+      "==",
+      true
+     ],
+     [
+      "adult_looks_child",
+      "==",
+      false
+     ]
+    ]
+   },
+   "problem": "机会提示：亲子照",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "孩子看镜头，大人看孩子",
+   "priority": 5,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B2·L18父母与子女合影"
+  },
+  {
+   "id": "KID-001",
+   "category": "portrait",
+   "scenes": [
+    "child",
+    "pet"
+   ],
+   "when": {
+    "all": [
+     [
+      "camera_above_subject_deg",
+      ">=",
+      25
+     ]
+    ]
+   },
+   "problem": "站着往下拍孩子/宠物，视角太常规",
+   "overlay": {
+    "type": "height_icon",
+    "params": {
+     "dir": "lower"
+    }
+   },
+   "tip": "蹲下来，和TA眼睛一样高",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B2·L18（镜头放在与动物视线同高）；B1·换个角度",
+   "suppresses": [
+    "COMP-017"
+   ]
+  },
+  {
+   "id": "KID-002",
+   "category": "portrait",
+   "scenes": [
+    "child",
+    "pet"
+   ],
+   "when": {
+    "all": [
+     [
+      "subject_attention",
+      "<",
+      0.3
+     ],
+     [
+      "subject_idle_s",
+      ">=",
+      3
+     ]
+    ]
+   },
+   "problem": "孩子/宠物没注意镜头",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "在镜头旁摇玩具或叫名字",
+   "priority": 5,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "note": "原书提示：这招只灵一两次，触发后马上准备按快门",
+   "source": "B2·L18（婴儿用拨浪鼓、宠物拍前呼唤吹口哨）"
+  },
+  {
+   "id": "PET-001",
+   "category": "exposure",
+   "scenes": [
+    "pet"
+   ],
+   "when": {
+    "all": [
+     [
+      "subject_class",
+      "in",
+      [
+       "dog",
+       "cat"
+      ]
+     ],
+     [
+      "subject_mean_luma",
+      "<",
+      0.12
+     ]
+    ]
+   },
+   "problem": "黑毛宠物容易被拍成灰色",
+   "overlay": {
+    "type": "ev_hint",
+    "params": {
+     "dir": "down"
+    }
+   },
+   "tip": "黑毛别拍成灰，调暗一点",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B2·L18家庭宠物（曝光）"
+  },
+  {
+   "id": "PET-002",
+   "category": "exposure",
+   "scenes": [
+    "pet"
+   ],
+   "when": {
+    "all": [
+     [
+      "subject_class",
+      "in",
+      [
+       "dog",
+       "cat"
+      ]
+     ],
+     [
+      "subject_mean_luma",
+      ">",
+      0.85
+     ]
+    ]
+   },
+   "problem": "白毛宠物容易被拍灰或过曝无细节",
+   "overlay": {
+    "type": "ev_hint",
+    "params": {
+     "dir": "up_careful"
+    }
+   },
+   "tip": "白毛先点它，看清毛的纹理",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B2·L18家庭宠物（曝光）"
+  },
+  {
+   "id": "SPT-001",
+   "category": "composition",
+   "scenes": [
+    "sports",
+    "street",
+    "pet",
+    "child"
+   ],
+   "when": {
+    "all": [
+     [
+      "subject_motion",
+      ">=",
+      0.4
+     ],
+     [
+      "subject_motion_dir",
+      "==",
+      "away"
+     ]
+    ]
+   },
+   "problem": "只拍到运动的背影",
+   "overlay": {
+    "type": "move_arrow",
+    "params": {
+     "direction": "ahead_of_subject"
+    }
+   },
+   "tip": "到他前方，拍迎面而来",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B2·L3（迎面运动最易凝固）、L30体育七要点（拍朝你来的动作）"
+  },
+  {
+   "id": "SPT-002",
+   "category": "creative",
+   "scenes": [
+    "sports",
+    "street"
+   ],
+   "when": {
+    "all": [
+     [
+      "subject_motion",
+      ">=",
+      0.6
+     ],
+     [
+      "subject_motion_dir",
+      "==",
+      "lateral"
+     ]
+    ]
+   },
+   "problem": "机会提示：横向运动可追随拍出速度感",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "跟着转身拍，背景会流动",
+   "priority": 5,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B2·L3追随拍摄、L8通过动作突出重点"
+  },
+  {
+   "id": "COMP-020",
+   "category": "composition",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "any": [
+     [
+      "facing_space_ratio",
+      "<",
+      0.6
+     ]
+    ]
+   },
+   "problem": "人脸朝向或运动方向一侧空间不足，像要撞墙",
+   "overlay": {
+    "type": "move_arrow",
+    "params": {
+     "direction": "toward_facing_side"
+    }
+   },
+   "tip": "朝向的那边多留点空",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B2·L16（脸朝向一侧多留空间）、L30（赛车前方留空）"
+  },
+  {
+   "id": "COMP-021",
+   "category": "composition",
+   "scenes": [
+    "landscape",
+    "building",
+    "street"
+   ],
+   "when": {
+    "all": [
+     [
+      "sky_ratio",
+      ">=",
+      0.35
+     ],
+     [
+      "sky_texture",
+      "<",
+      0.15
+     ]
+    ]
+   },
+   "problem": "天空一片空白，占了大块画面",
+   "overlay": {
+    "type": "move_arrow",
+    "params": {
+     "direction": "down"
+    }
+   },
+   "tip": "天空太白，少拍点天",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B2·L25（等云和太阳出来，云彩增加戏剧性）；B1·三分法",
+   "suppresses": [
+    "COMP-002"
+   ]
+  },
+  {
+   "id": "COMP-022",
+   "category": "composition",
+   "scenes": [
+    "plant_flower",
+    "food_still",
+    "building",
+    "pet",
+    "street"
+   ],
+   "when": {
+    "all": [
+     [
+      "subject_touches_edges",
+      ">=",
+      2
+     ],
+     [
+      "face_area_ratio",
+      "<",
+      0.15
+     ]
+    ]
+   },
+   "problem": "主体塞满画面、贴着边",
+   "overlay": {
+    "type": "distance_hint",
+    "params": {
+     "dir": "back"
+    }
+   },
+   "tip": "四周留点空，别塞太满",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B2·L8常见错误（取景太近，四周要留余地）"
+  },
+  {
+   "id": "COMP-023",
+   "category": "composition",
+   "scenes": [
+    "*"
+   ],
+   "when": {
+    "all": [
+     [
+      "bg_bright_distractor",
+      ">=",
+      0.5
+     ]
+    ]
+   },
+   "problem": "背景里有比主体更亮的亮斑抢眼",
+   "overlay": {
+    "type": "move_arrow",
+    "params": {
+     "direction": "sidestep"
+    }
+   },
+   "tip": "背景亮斑抢眼，换个角度",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B2·L8（用光突出主体）、L15（背景显眼亮点分散注意）、L17（避开背景亮斑）"
+  },
+  {
+   "id": "COMP-024",
+   "category": "composition",
+   "scenes": [
+    "landscape"
+   ],
+   "when": {
+    "all": [
+     [
+      "near_foreground_present",
+      "==",
+      false
+     ],
+     [
+      "depth_range",
+      "<",
+      2
+     ]
+    ]
+   },
+   "problem": "风景没有前景，显得平、没纵深",
+   "overlay": {
+    "type": "height_icon",
+    "params": {
+     "dir": "lower"
+    }
+   },
+   "tip": "放低手机，带点花草石头做前景",
+   "priority": 5,
+   "detectability": "needs_depth",
+   "confidence": "medium",
+   "source": "B2·L1（低角度+有纹理前景）、L3（广角贴近前景石头）、L8（树枝/栅栏搭框给远近比例）"
+  },
+  {
+   "id": "COMP-025",
+   "category": "composition",
+   "scenes": [
+    "landscape",
+    "building"
+   ],
+   "when": {
+    "all": [
+     [
+      "person_count",
+      ">=",
+      5
+     ],
+     [
+      "persons_are_subject",
+      "==",
+      false
+     ]
+    ]
+   },
+   "problem": "游客太多挡住景点",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "人多：等空档或用前景挡住",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B2·L9旅行摄影（早到、等空档、用雕像矮墙把人群挡在后面）"
+  },
+  {
+   "id": "ARC-001",
+   "category": "composition",
+   "scenes": [
+    "building",
+    "interior"
+   ],
+   "when": {
+    "all": [
+     [
+      "vertical_convergence",
+      ">=",
+      0.25
+     ],
+     [
+      "device_pitch_deg",
+      ">",
+      5
+     ],
+     [
+      "device_pitch_deg",
+      "<",
+      30
+     ]
+    ]
+   },
+   "problem": "仰拍让楼的竖线往里收，像要往后倒",
+   "overlay": {
+    "type": "level_line",
+    "params": {
+     "axis": "vertical"
+    }
+   },
+   "tip": "手机端平，后退或站高点拍",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "note": "仰角≥30°视为有意表现高耸，不提示；后期可用透视校正补救（POST-007）",
+   "source": "B2·L25建筑摄影（保持机背垂直、找半高处拍摄）"
+  },
+  {
+   "id": "ARC-002",
+   "category": "composition",
+   "scenes": [
+    "building"
+   ],
+   "when": {
+    "all": [
+     [
+      "corner_centered",
+      "==",
+      true
+     ],
+     [
+      "subject_area_ratio",
+      "<",
+      0.8
+     ]
+    ]
+   },
+   "problem": "正对楼角，两个立面一样大，画面呆板",
+   "overlay": {
+    "type": "move_arrow",
+    "params": {
+     "direction": "sidestep"
+    }
+   },
+   "tip": "往一侧挪，让一面为主",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B2·L25透视与建筑（两个消失点对称显死板）"
+  },
+  {
+   "id": "ARC-003",
+   "category": "composition",
+   "scenes": [
+    "building"
+   ],
+   "when": {
+    "all": [
+     [
+      "corner_centered",
+      "==",
+      true
+     ],
+     [
+      "subject_area_ratio",
+      ">=",
+      0.8
+     ],
+     [
+      "focal_equiv_mm",
+      "<=",
+      26
+     ]
+    ]
+   },
+   "problem": "离楼角太近用广角，楼角尖得像船头",
+   "overlay": {
+    "type": "distance_hint",
+    "params": {
+     "dir": "back"
+    }
+   },
+   "tip": "离太近楼角变形，后退几步",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B2·L25（船头效应）"
+  },
+  {
+   "id": "ARC-004",
+   "category": "composition",
+   "scenes": [
+    "building",
+    "landscape"
+   ],
+   "when": {
+    "all": [
+     [
+      "foreground_obstacle",
+      ">=",
+      0.08
+     ]
+    ]
+   },
+   "problem": "电线杆、标志牌、车挡在建筑前面",
+   "overlay": {
+    "type": "move_arrow",
+    "params": {
+     "direction": "sidestep"
+    }
+   },
+   "tip": "横向挪几步，避开杆子和车",
+   "priority": 3,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B2·L25如何去除障碍物"
+  },
+  {
+   "id": "INT-001",
+   "category": "composition",
+   "scenes": [
+    "interior",
+    "food_still"
+   ],
+   "when": {
+    "all": [
+     [
+      "element_count",
+      ">=",
+      8
+     ]
+    ]
+   },
+   "problem": "桌面/室内小物件太多太乱",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "收走杂物再拍，越少越好",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "medium",
+   "source": "B2·L25内景摄影（去掉小饰物）、L17（不要烟灰缸、乱文件）"
+  },
+  {
+   "id": "FOOD-001",
+   "category": "light",
+   "scenes": [
+    "food_still"
+   ],
+   "when": {
+    "all": [
+     [
+      "light_direction",
+      "in",
+      [
+       "front",
+       "top"
+      ]
+     ],
+     [
+      "weather_overcast",
+      "==",
+      false
+     ]
+    ]
+   },
+   "problem": "顺光/顶光拍食物，平、没质感",
+   "overlay": {
+    "type": "sun_icon",
+    "params": {
+     "go_to": "side_back"
+    }
+   },
+   "tip": "让光从侧后方来，更有质感",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B2·L24拍摄食品（侧光突出质感和水珠）"
+  },
+  {
+   "id": "FOOD-002",
+   "category": "creative",
+   "scenes": [
+    "food_still"
+   ],
+   "when": {
+    "all": [
+     [
+      "subject_class",
+      "==",
+      "produce"
+     ]
+    ]
+   },
+   "problem": "机会提示：水果蔬菜表面加点水珠更新鲜",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "喷点清水，蔬果更新鲜",
+   "priority": 5,
+   "detectability": "realtime",
+   "confidence": "low",
+   "note": "原书另用甘油涂油，不推荐给普通用户；只保留喷清水",
+   "source": "B2·L24（喷水显鲜）"
+  },
+  {
+   "id": "FLW-001",
+   "category": "stability",
+   "scenes": [
+    "plant_flower",
+    "macro"
+   ],
+   "when": {
+    "all": [
+     [
+      "subject_motion",
+      ">=",
+      0.3
+     ],
+     [
+      "focus_distance_m",
+      "<",
+      0.6
+     ]
+    ]
+   },
+   "problem": "花被风吹得晃动，近拍会跑焦",
+   "overlay": {
+    "type": "banner"
+   },
+   "tip": "有风在晃，等风停再按",
+   "priority": 2,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B2·L26拍摄花朵（选无风时、挡风）"
+  },
+  {
+   "id": "FLW-002",
+   "category": "composition",
+   "scenes": [
+    "plant_flower",
+    "pet",
+    "food_still"
+   ],
+   "when": {
+    "all": [
+     [
+      "subject_bg_color_similarity",
+      ">=",
+      0.7
+     ]
+    ]
+   },
+   "problem": "主体和背景同色同亮，跳不出来",
+   "overlay": {
+    "type": "move_arrow",
+    "params": {
+     "direction": "change_angle"
+    }
+   },
+   "tip": "背景和主体太像，换个角度",
+   "priority": 4,
+   "detectability": "realtime",
+   "confidence": "high",
+   "source": "B2·L26（避免背景与花同色同影调）、L18（背景与毛色形成对比）"
+  },
+  {
+   "id": "SS-level",
+   "subs": [
+    "vista",
+    "city",
+    "sunset",
+    "night",
+    "full",
+    "half",
+    "travel",
+    "sit"
+   ],
+   "when": "has_tilt && tilt_abs >= 1.5 && tilt_abs < 10 && (!has_hz || ['half','sit'].includes(sub))",
+   "priority": 3,
+   "confidence": "high",
+   "tip": "{tilt > 0 ? '手机右侧抬高一点' : '手机左侧抬高一点'}，摆正再拍",
+   "problem": "画面歪了 {tilt_abs}°",
+   "picto": "tilt",
+   "flip": "tilt < 0",
+   "draw": {
+    "type": "tilt",
+    "theta": "tilt",
+    "src": "tilt_src"
+   },
+   "principle": "地平线或建筑线一歪，整张照片就显得不稳。",
+   "note": "主库 COMP-001 在检测到地平线时负责提示；本条补充没有地平线的画面，以及主库未覆盖的半身照、坐姿。",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-fore",
+   "subs": [
+    "vista"
+   ],
+   "when": "has_hz && low_edge < 0.04 && low_sd < 12",
+   "priority": 4,
+   "confidence": "medium",
+   "tip": "画面下方放点石头、花草做前景",
+   "problem": "前景有点空，画面缺少层次",
+   "picto": "fore",
+   "principle": "前景、中景、远景三层叠在一起，照片才有纵深感。",
+   "note": "主库 COMP-024 需要深度信息；本条用画面下部纹理近似判断。",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-top",
+   "subs": [
+    "city"
+   ],
+   "when": "top_edge > 0.15 && vdens > 0.04",
+   "priority": 4,
+   "confidence": "medium",
+   "tip": "后退几步，把楼顶拍全",
+   "problem": "楼顶可能被切掉了",
+   "picto": "top",
+   "draw": {
+    "type": "topband"
+   },
+   "principle": "建筑顶部往往最有特点，切掉会显得不完整。",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-sunexp",
+   "subs": [
+    "sunset"
+   ],
+   "when": "hi > 0.04",
+   "priority": 2,
+   "confidence": "high",
+   "tip": "点一下最亮处，降低曝光",
+   "problem": "天空过曝，晚霞颜色会丢",
+   "picto": "bright",
+   "principle": "日落时按亮部测光，天空的颜色才保得住。",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-sunhz",
+   "subs": [
+    "sunset"
+   ],
+   "when": "has_hz && hz_y < 0.58",
+   "priority": 3,
+   "confidence": "high",
+   "tip": "手机往上仰，天空占三分之二",
+   "problem": "日落的天空留得不够",
+   "picto": "pitchUp",
+   "draw": {
+    "type": "hline",
+    "y": "hz_y",
+    "t": "2/3"
+   },
+   "principle": "日落的主角是天空和云，给它更多画面。",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-sunpos",
+   "subs": [
+    "sunset"
+   ],
+   "when": "sun_mean > 220 && abs(sun_x - 0.5) < 0.12 && abs(sun_y - 0.5) < 0.15",
+   "priority": 3,
+   "confidence": "medium",
+   "tip": "把太阳移到三分线交点",
+   "problem": "太阳在正中间，画面呆板",
+   "picto": "sunpos",
+   "draw": {
+    "type": "arrow2",
+    "x": "sun_x",
+    "y": "sun_y",
+    "tx": "sun_tx",
+    "ty": "sun_ty",
+    "label": "太阳放这里"
+   },
+   "principle": "主体偏离正中，画面更有张力。",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-nightmerge",
+   "subs": [
+    "night"
+   ],
+   "when": "mean < 45",
+   "priority": 2,
+   "confidence": "high",
+   "tip": "开夜景合成，按快门后别动",
+   "problem": "光线很暗，单张噪点多",
+   "picto": "moon",
+   "suppresses": [
+    "EXP-006"
+   ],
+   "principle": "连拍多张对齐叠加，噪点随帧数增加而减少。",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-bright",
+   "subs": [
+    "vista",
+    "city",
+    "macro",
+    "full",
+    "half",
+    "travel",
+    "sit",
+    "selfie"
+   ],
+   "when": "hi > 0.12",
+   "priority": 2,
+   "confidence": "high",
+   "tip": "点一下最亮处，降低曝光",
+   "problem": "亮部过曝，细节会丢",
+   "picto": "bright",
+   "principle": "过曝的区域是纯白的，后期也救不回来。",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-noperson",
+   "subs": [
+    "full",
+    "half",
+    "travel",
+    "sit",
+    "selfie"
+   ],
+   "when": "!has_person && has_human",
+   "priority": 4,
+   "confidence": "high",
+   "tip": "{sub === 'selfie' ? '把脸放进椭圆框里' : '让人物进入画面，至少露出肩膀'}",
+   "problem": "还没找到人物",
+   "picto": "noperson",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-pos",
+   "subs": [
+    "full",
+    "travel",
+    "sit"
+   ],
+   "when": "has_person && abs(p_cx - 0.5) > 0.05 && abs(pos_d) > 0.06",
+   "priority": 3,
+   "confidence": "high",
+   "tip": "{pos_d > 0 ? '手机向左平移一点' : '手机向右平移一点'}",
+   "problem": "人物不在三分线上",
+   "picto": "panLeft",
+   "flip": "pos_d < 0",
+   "draw": {
+    "type": "move",
+    "x": "p_cx",
+    "y": "p_cy",
+    "tx": "pos_t"
+   },
+   "principle": "人站在三分线上，另一侧留给风景，主次分明。",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-headcut",
+   "subs": [
+    "full",
+    "half"
+   ],
+   "when": "has_person && head_top < 0.02",
+   "priority": 3,
+   "confidence": "high",
+   "tip": "手机往上抬，头顶留点空",
+   "problem": "头顶快被切到了",
+   "picto": "headCut",
+   "draw": {
+    "type": "band"
+   },
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-headroom-full",
+   "subs": [
+    "full"
+   ],
+   "when": "has_person && head_top > 0.15 && !(full && ankle_y > 0.9)",
+   "priority": 4,
+   "confidence": "medium",
+   "tip": "手机往下压一点，或走近一步",
+   "problem": "头顶留白太多，人显得矮",
+   "picto": "headroom",
+   "draw": {
+    "type": "headroom",
+    "y": "head_top"
+   },
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-headroom-half",
+   "subs": [
+    "half"
+   ],
+   "when": "has_person && head_top > 0.2",
+   "priority": 4,
+   "confidence": "medium",
+   "tip": "手机往下压一点，或走近一步",
+   "problem": "头顶留白太多",
+   "picto": "headroom",
+   "draw": {
+    "type": "headroom",
+    "y": "head_top"
+   },
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-legs",
+   "subs": [
+    "full"
+   ],
+   "when": "has_person && full && ankle_y < 0.88",
+   "priority": 4,
+   "confidence": "high",
+   "tip": "手机放到腰部，脚踩底边更显高",
+   "problem": "脚离画面底边太远",
+   "picto": "legs",
+   "draw": {
+    "type": "guideH",
+    "y": "0.95",
+    "from": "ankle_y",
+    "label": "脚踩这条线"
+   },
+   "principle": "手机放低、脚贴近画面底部，透视会把腿拉长。",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-toobig",
+   "subs": [
+    "travel"
+   ],
+   "when": "has_person && height_ratio > 0.42",
+   "priority": 3,
+   "confidence": "high",
+   "tip": "后退几步，多留一点风景",
+   "problem": "打卡照里人占得太大",
+   "picto": "toobig",
+   "draw": {
+    "type": "sizebox",
+    "x": "p_cx"
+   },
+   "principle": "人占画面 1/4~1/3 高，风景才有存在感。",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-neck",
+   "subs": [
+    "travel"
+   ],
+   "when": "has_person && has_hz && abs(hz_y - neck_y) < 0.03",
+   "priority": 3,
+   "confidence": "high",
+   "tip": "手机升高或降低，避开脖子",
+   "problem": "地平线横穿脖子",
+   "picto": "neck",
+   "draw": {
+    "type": "guideH",
+    "y": "hz_y",
+    "color": "warn",
+    "label": "避开脖子"
+   },
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-sitlevel",
+   "subs": [
+    "sit"
+   ],
+   "when": "has_person && eye_y > 0.5",
+   "priority": 3,
+   "confidence": "medium",
+   "tip": "蹲下来，和坐着的人平视",
+   "problem": "在俯拍坐着的人，显矮",
+   "picto": "sitlevel",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-knees",
+   "subs": [
+    "sit"
+   ],
+   "when": "has_person && thigh_short",
+   "priority": 4,
+   "confidence": "medium",
+   "tip": "腿斜着伸出去",
+   "problem": "膝盖正对镜头，腿显短",
+   "picto": "knees",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-far",
+   "subs": [
+    "selfie"
+   ],
+   "when": "has_person && face_w > 0.55",
+   "priority": 3,
+   "confidence": "high",
+   "tip": "手机拿远一点，脸放进框里",
+   "problem": "离得太近，广角会让脸变形",
+   "picto": "oval",
+   "draw": {
+    "type": "oval"
+   },
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-near",
+   "subs": [
+    "selfie"
+   ],
+   "when": "has_person && face_w < 0.2",
+   "priority": 4,
+   "confidence": "medium",
+   "tip": "手机拿近一点",
+   "problem": "脸太小，看不清表情",
+   "picto": "oval",
+   "draw": {
+    "type": "oval"
+   },
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-facepos",
+   "subs": [
+    "selfie"
+   ],
+   "when": "has_person && (abs(face_x - 0.5) > 0.1 || abs(face_y - 0.38) > 0.1)",
+   "priority": 3,
+   "confidence": "medium",
+   "tip": "{abs(face_x - 0.5) >= abs(face_y - 0.38) ? (face_x > 0.5 ? '手机向右移一点' : '手机向左移一点') : (face_y > 0.38 ? '手机往下压一点' : '手机往上抬一点')}",
+   "problem": "脸没在椭圆框里",
+   "picto": "oval",
+   "draw": {
+    "type": "oval"
+   },
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-pose",
+   "subs": [
+    "full",
+    "half",
+    "travel",
+    "sit",
+    "selfie"
+   ],
+   "when": "pose_on && pose_score >= 0 && pose_score < 75",
+   "priority": 4,
+   "confidence": "medium",
+   "tip": "{pose_hint}",
+   "problem": "姿势相似度 {pose_score}%",
+   "picto": "pose",
+   "draw": {
+    "type": "pose",
+    "short": "pose_short",
+    "pt": "pose_pt"
+   },
+   "drawWhen": "pose_pt && pose_short",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-poseok",
+   "subs": [
+    "full",
+    "half",
+    "travel",
+    "sit",
+    "selfie"
+   ],
+   "when": "pose_on && pose_score >= 75",
+   "priority": 5,
+   "confidence": "high",
+   "tip": "姿势到位，可以拍了",
+   "problem": "姿势相似度 {pose_score}%",
+   "picto": "poseOk",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  }
+ ],
+ "post_rules": [
+  {
+   "id": "POST-001",
+   "when": {
+    "all": [
+     [
+      "mean_luma",
+      "<",
+      0.35
+     ],
+     [
+      "highlight_clip_ratio",
+      "<",
+      0.02
+     ]
+    ]
+   },
+   "problem": "整体偏暗",
+   "action": "提亮度 / 提阴影，不要动高光",
+   "source": "B1·后期思路·荷花案例"
+  },
+  {
+   "id": "POST-002",
+   "when": {
+    "all": [
+     [
+      "edge_distractor",
+      "==",
+      true
+     ]
+    ]
+   },
+   "problem": "画面边缘有残缺杂物",
+   "action": "建议裁剪；裁不掉时用修复工具去除",
+   "source": "B1·后期上·枫叶案例；后期思路"
+  },
+  {
+   "id": "POST-003",
+   "when": {
+    "all": [
+     [
+      "saturation_mean",
+      "<",
+      0.3
+     ]
+    ]
+   },
+   "problem": "颜色平淡",
+   "action": "适度加饱和度；秋景/日落可加暖色温",
+   "source": "B1·后期上·逐秋案例"
+  },
+  {
+   "id": "POST-004",
+   "when": {
+    "all": [
+     [
+      "subject_luma_vs_bg",
+      "<",
+      0.6
+     ]
+    ]
+   },
+   "problem": "主体比环境暗",
+   "action": "对主体做局部提亮，而不是整体提亮",
+   "source": "B1·后期思路·局部调整"
+  },
+  {
+   "id": "POST-005",
+   "when": {
+    "all": [
+     [
+      "subject_area_ratio",
+      "<",
+      0.1
+     ],
+     [
+      "subject_detected",
+      "==",
+      true
+     ]
+    ]
+   },
+   "problem": "主体不够突出",
+   "action": "按三分线建议裁剪框；可加轻微暗角或背景虚化",
+   "source": "B1·三妙招·后期凸显主题"
+  },
+  {
+   "id": "POST-006",
+   "when": {
+    "all": [
+     [
+      "after_capture",
+      "==",
+      true
+     ]
+    ]
+   },
+   "problem": "手机小屏看着清楚，放大可能是虚的",
+   "action": "拍完放大检查眼睛/主体清晰度；关键画面多拍几张",
+   "source": "B2·L36（不要在小屏上判断清晰度）"
+  },
+  {
+   "id": "POST-007",
+   "when": {
+    "all": [
+     [
+      "vertical_convergence",
+      ">=",
+      0.15
+     ],
+     [
+      "scene",
+      "in",
+      [
+       "building",
+       "interior"
+      ]
+     ]
+    ]
+   },
+   "problem": "建筑竖线汇聚",
+   "action": "用透视校正把竖线拉直，再裁剪",
+   "source": "B2·L25暗室里的透视修正"
+  },
+  {
+   "id": "POST-008",
+   "when": {
+    "all": [
+     [
+      "edge_distractor",
+      "==",
+      true
+     ]
+    ]
+   },
+   "problem": "墙上画、电线杆等边缘干扰",
+   "action": "裁剪去掉，只保留有助于说明主体的元素",
+   "source": "B2·L17（简单剪裁改进照片）、L25"
+  }
+ ],
+ "excluded_from_book": [
+  {
+   "topic": "主题立意、摄影眼培养、每天一拍、审美提升",
+   "reason": "主观、无法实时检测；保留在 skill 里作为文案语气参考"
+  },
+  {
+   "topic": "相机360/Snapseed 的逐步操作界面",
+   "reason": "软件界面已变化，只提炼成 post_rules 的处理思路"
+  },
+  {
+   "topic": "2015年机型参数、软件推荐、购机建议、出行充电",
+   "reason": "过时或与取景提示无关"
+  },
+  {
+   "topic": "滴水当微距镜头、‘镜头不会进水’",
+   "reason": "有损坏设备风险，不推荐给普通用户"
+  },
+  {
+   "topic": "‘露左脸更好看’‘90%自拍用45度’等说法",
+   "reason": "缺乏可靠依据，仅保留可操作部分"
+  },
+  {
+   "topic": "HDR 不适合人像",
+   "reason": "对当前手机已不成立，未采用"
+  },
+  {
+   "topic": "B2：胶片、冲洗、暗室放大、区域曝光系统",
+   "reason": "与手机取景无关"
+  },
+  {
+   "topic": "B2：机背取景相机移轴操作、多灯光比计算、闪光同步、摄影室器材",
+   "reason": "手机无法操作；只提炼成“端平/侧光/补光”等结论"
+  },
+  {
+   "topic": "B2：人体魅态摄影",
+   "reason": "不适合大众产品的取景提示；仅保留通用姿势原则（侧肩、避免身体被压扁）"
+  },
+  {
+   "topic": "B2：摄影室经营、销售、广告业务、旅行海关与X光",
+   "reason": "与取景无关"
+  },
+  {
+   "topic": "B2：食品涂甘油、把昆虫放冰箱降温",
+   "reason": "不适合普通用户/涉及动物福利，未采用"
+  }
+ ],
+ "app_extensions_version": "ss-2.0",
+ "merged_note": "主库 96 条来自两本教材的蒸馏（rules 前段，id 不带 SS 前缀）；SS- 开头的是随手大师针对 10 类细分场景的补充规则（subs 指细分场景，when 为表达式），tips 为画面无问题时轮播的技巧。与主库重复的旧规则已删除。",
+ "tips": [
+  {
+   "id": "tip-vista-1",
+   "subs": [
+    "vista"
+   ],
+   "tip": "日出后、日落前一小时光线最柔和，风景最出片",
+   "problem": "风景小技巧",
+   "principle": "黄金时段太阳角度低，光线暖、影子长，层次最丰富。",
+   "source": "风光摄影 · 黄金时段"
+  },
+  {
+   "id": "tip-vista-2",
+   "subs": [
+    "vista"
+   ],
+   "tip": "找一条路、一条河或一排树，让它把视线引向远方",
+   "problem": "风景小技巧",
+   "principle": "引导线会带着观众的视线走进画面深处。",
+   "source": "构图基础 · 引导线"
+  },
+  {
+   "id": "tip-vista-3",
+   "subs": [
+    "vista"
+   ],
+   "tip": "远处有一个小小的人，能衬托出风景的辽阔",
+   "problem": "风景小技巧",
+   "principle": "人是大家熟悉的尺度参照，用来对比山海的体量。",
+   "source": "风光摄影 · 尺度感"
+  },
+  {
+   "id": "tip-vista-4",
+   "subs": [
+    "vista"
+   ],
+   "tip": "横着拍更有开阔感，竖着拍更适合手机屏幕和高耸的山",
+   "problem": "风景小技巧",
+   "principle": "画幅方向会影响画面的情绪：横幅舒展，竖幅挺拔。",
+   "source": "构图基础 · 画幅"
+  },
+  {
+   "id": "tip-city-1",
+   "subs": [
+    "city"
+   ],
+   "tip": "用门洞、窗框、树枝把建筑框起来，画面更有故事感",
+   "problem": "建筑小技巧",
+   "principle": "框架构图能聚焦主体，也增加了前后层次。",
+   "source": "构图基础 · 框架构图"
+  },
+  {
+   "id": "tip-city-2",
+   "subs": [
+    "city"
+   ],
+   "tip": "要么完全平视，要么大胆贴地仰拍，最怕仰一半",
+   "problem": "建筑小技巧",
+   "principle": "轻微的透视变形像拍歪了，夸张的透视才像有意为之。",
+   "source": "建筑摄影 · 透视"
+  },
+  {
+   "id": "tip-city-3",
+   "subs": [
+    "city"
+   ],
+   "tip": "日落后 20 分钟是“蓝调时刻”，天空深蓝、灯光刚亮，城市最好看",
+   "problem": "建筑小技巧",
+   "principle": "蓝调时刻天空和人造光亮度接近，画面明暗均衡。",
+   "source": "城市摄影 · 蓝调时刻"
+  },
+  {
+   "id": "tip-city-4",
+   "subs": [
+    "city"
+   ],
+   "tip": "找重复的窗户、柱子和台阶，拍出节奏感",
+   "problem": "建筑小技巧",
+   "principle": "重复的元素会形成图案，带来秩序和韵律。",
+   "source": "构图基础 · 重复与韵律"
+  },
+  {
+   "id": "tip-sunset-1",
+   "subs": [
+    "sunset"
+   ],
+   "tip": "太阳落下后别急着走，10~20 分钟后的晚霞往往更美",
+   "problem": "日落小技巧",
+   "principle": "太阳在地平线以下时，云层被从下方照亮，颜色最浓。",
+   "source": "风光摄影 · 晚霞"
+  },
+  {
+   "id": "tip-sunset-2",
+   "subs": [
+    "sunset"
+   ],
+   "tip": "有云的天气才有好晚霞，万里无云反而单调",
+   "problem": "日落小技巧",
+   "principle": "云是晚霞的“画布”，没有云就没有色彩层次。",
+   "source": "风光摄影 · 天气"
+  },
+  {
+   "id": "tip-sunset-3",
+   "subs": [
+    "sunset"
+   ],
+   "tip": "找一棵树、一座桥或一个人做前景，拍成剪影",
+   "problem": "日落小技巧",
+   "principle": "剪影能给日落加上主体，避免只有一片天空。",
+   "source": "风光摄影 · 剪影"
+  },
+  {
+   "id": "tip-sunset-4",
+   "subs": [
+    "sunset"
+   ],
+   "tip": "不要直视太阳太久，也别让镜头长时间对着正午的太阳",
+   "problem": "日落小技巧",
+   "principle": "保护眼睛，也保护手机的感光元件。",
+   "source": "安全提示"
+  },
+  {
+   "id": "tip-night-1",
+   "subs": [
+    "night"
+   ],
+   "tip": "开启夜景模式，按快门后保持 2 秒不动",
+   "problem": "夜景小技巧",
+   "principle": "夜景模式需要连拍几张再合成，中途移动会糊。",
+   "source": "夜景 · 手机算法"
+  },
+  {
+   "id": "tip-night-2",
+   "subs": [
+    "night"
+   ],
+   "tip": "雨后的地面有倒影，蹲低拍，灯光翻倍",
+   "problem": "夜景小技巧",
+   "principle": "倒影让画面上下呼应，也增加了光点。",
+   "source": "夜景 · 倒影"
+  },
+  {
+   "id": "tip-night-3",
+   "subs": [
+    "night"
+   ],
+   "tip": "别让路灯直射镜头，容易出现光斑和眩光",
+   "problem": "夜景小技巧",
+   "principle": "强光直射镜头会在玻璃之间反射，形成鬼影。",
+   "source": "夜景 · 眩光"
+  },
+  {
+   "id": "tip-night-4",
+   "subs": [
+    "night"
+   ],
+   "tip": "擦一下镜头再拍，指纹会让灯光糊成一团",
+   "problem": "夜景小技巧",
+   "principle": "镜头上的油污会把点光源散射成一片雾。",
+   "source": "器材 · 清洁"
+  },
+  {
+   "id": "tip-night-5",
+   "subs": [
+    "night"
+   ],
+   "tip": "想要最好的效果，用小米相机的「夜景」模式拍，再点「相册」导入，这里帮你点评构图",
+   "problem": "夜景小技巧",
+   "principle": "系统相机的夜景模式能直接控制传感器长曝光，画质比网页能拿到的视频画面更好。",
+   "source": "夜景 · 系统相机"
+  },
+  {
+   "id": "tip-macro-1",
+   "subs": [
+    "macro"
+   ],
+   "tip": "逆着光拍花瓣和树叶，会更通透、更亮",
+   "problem": "特写小技巧",
+   "principle": "薄的花瓣在逆光下透光，颜色和纹理都更明显。",
+   "source": "静物 · 逆光"
+  },
+  {
+   "id": "tip-macro-2",
+   "subs": [
+    "macro"
+   ],
+   "tip": "蹲下来，和花保持同一高度拍",
+   "problem": "特写小技巧",
+   "principle": "平视角度更有代入感，也更容易得到干净的背景。",
+   "source": "静物 · 视角"
+  },
+  {
+   "id": "tip-macro-3",
+   "subs": [
+    "macro"
+   ],
+   "tip": "点一下屏幕上的花对焦，再拍",
+   "problem": "特写小技巧",
+   "principle": "近距离拍摄景深很浅，对焦点稍偏就会糊。",
+   "source": "静物 · 对焦"
+  },
+  {
+   "id": "tip-macro-4",
+   "subs": [
+    "macro"
+   ],
+   "tip": "雨后或清晨有露水，花草最有生气",
+   "problem": "特写小技巧",
+   "principle": "水珠会反射光线，给画面增加亮点。",
+   "source": "静物 · 时机"
+  },
+  {
+   "id": "tip-full-1",
+   "subs": [
+    "full"
+   ],
+   "tip": "让人边走边拍，比站着摆姿势更自然",
+   "problem": "全身照小技巧",
+   "principle": "动态中的身体更放松，表情也更真实。",
+   "source": "人像 · 抓拍"
+  },
+  {
+   "id": "tip-full-2",
+   "subs": [
+    "full"
+   ],
+   "tip": "让人看向画面空着的那一侧",
+   "problem": "全身照小技巧",
+   "principle": "视线方向留出空间，画面才不憋。",
+   "source": "人像 · 视线空间"
+  },
+  {
+   "id": "tip-full-3",
+   "subs": [
+    "full"
+   ],
+   "tip": "衣服颜色和背景拉开对比，人更跳",
+   "problem": "全身照小技巧",
+   "principle": "颜色对比能让主体从背景中分离出来。",
+   "source": "人像 · 色彩"
+  },
+  {
+   "id": "tip-full-4",
+   "subs": [
+    "full"
+   ],
+   "tip": "重心放在后脚，前脚脚尖点地，腿更显长",
+   "problem": "全身照小技巧",
+   "principle": "重心后移会让身体形成自然的曲线。",
+   "source": "人像 · 姿态"
+  },
+  {
+   "id": "tip-half-1",
+   "subs": [
+    "half"
+   ],
+   "tip": "面向窗户站，眼睛里会有亮亮的眼神光",
+   "problem": "半身照小技巧",
+   "principle": "眼神光让眼睛看起来有神。",
+   "source": "人像 · 眼神光"
+  },
+  {
+   "id": "tip-half-2",
+   "subs": [
+    "half"
+   ],
+   "tip": "下巴微微往前伸再往下收，下颌线更清晰",
+   "problem": "半身照小技巧",
+   "principle": "这个动作能拉开下巴和脖子的距离，避免双下巴。",
+   "source": "人像 · 姿态"
+  },
+  {
+   "id": "tip-half-3",
+   "subs": [
+    "half"
+   ],
+   "tip": "让手有事做：拿杯子、扶眼镜、整理头发",
+   "problem": "半身照小技巧",
+   "principle": "手放着不动会显得僵硬，有动作就自然了。",
+   "source": "人像 · 手部"
+  },
+  {
+   "id": "tip-half-4",
+   "subs": [
+    "half"
+   ],
+   "tip": "人离背景远一点，背景更虚，人更突出",
+   "problem": "半身照小技巧",
+   "principle": "主体和背景距离越大，背景虚化越明显。",
+   "source": "人像 · 背景虚化"
+  },
+  {
+   "id": "tip-travel-1",
+   "subs": [
+    "travel"
+   ],
+   "tip": "先找好地标的位置，再让人站过去，别挡住招牌",
+   "problem": "打卡小技巧",
+   "principle": "打卡照的重点是“人在哪里”，地标要拍清楚。",
+   "source": "旅行摄影 · 地标"
+  },
+  {
+   "id": "tip-travel-2",
+   "subs": [
+    "travel"
+   ],
+   "tip": "背影照不用管表情，很适合不爱拍照的人",
+   "problem": "打卡小技巧",
+   "principle": "背影把注意力交给风景，人物成为观众的替身。",
+   "source": "旅行摄影 · 背影"
+  },
+  {
+   "id": "tip-travel-3",
+   "subs": [
+    "travel"
+   ],
+   "tip": "游客多时，往前走几步，用长焦把人群排除在外",
+   "problem": "打卡小技巧",
+   "principle": "长焦视角窄，更容易避开杂乱的背景。",
+   "source": "旅行摄影 · 避开人群"
+  },
+  {
+   "id": "tip-travel-4",
+   "subs": [
+    "travel"
+   ],
+   "tip": "让道路或栏杆指向人物",
+   "problem": "打卡小技巧",
+   "principle": "引导线把观众的视线带到人物身上。",
+   "source": "构图基础 · 引导线"
+  },
+  {
+   "id": "tip-sit-1",
+   "subs": [
+    "sit"
+   ],
+   "tip": "坐在台阶或椅子的边缘，背挺直，人更精神",
+   "problem": "坐姿小技巧",
+   "principle": "坐满会让身体塌下去，坐边缘更挺拔。",
+   "source": "人像 · 坐姿"
+  },
+  {
+   "id": "tip-sit-2",
+   "subs": [
+    "sit"
+   ],
+   "tip": "一条腿伸直，一条腿弯曲，比两条腿并拢好看",
+   "problem": "坐姿小技巧",
+   "principle": "高低不同的腿部线条会形成节奏。",
+   "source": "人像 · 坐姿"
+  },
+  {
+   "id": "tip-sit-3",
+   "subs": [
+    "sit"
+   ],
+   "tip": "身体稍微往前倾，看起来更亲近",
+   "problem": "坐姿小技巧",
+   "principle": "前倾的身体语言传达出兴趣和亲近感。",
+   "source": "人像 · 身体语言"
+  },
+  {
+   "id": "tip-sit-4",
+   "subs": [
+    "sit"
+   ],
+   "tip": "侧身坐，比正对镜头更显瘦",
+   "problem": "坐姿小技巧",
+   "principle": "侧面的身体轮廓更窄、更有曲线。",
+   "source": "人像 · 坐姿"
+  },
+  {
+   "id": "tip-selfie-1",
+   "subs": [
+    "selfie"
+   ],
+   "tip": "手机举到比眼睛略高，斜向下 15°，下巴微收",
+   "problem": "自拍小技巧",
+   "principle": "略高的机位会让脸显小、眼睛显大。",
+   "source": "自拍 · 机位"
+  },
+  {
+   "id": "tip-selfie-2",
+   "subs": [
+    "selfie"
+   ],
+   "tip": "靠近窗户自拍，自然光最显皮肤好",
+   "problem": "自拍小技巧",
+   "principle": "窗户是柔和的大面积光源，能减少脸上的阴影。",
+   "source": "自拍 · 光线"
+  },
+  {
+   "id": "tip-selfie-3",
+   "subs": [
+    "selfie"
+   ],
+   "tip": "眼睛看镜头而不是屏幕，照片里才是在看你",
+   "problem": "自拍小技巧",
+   "principle": "前置镜头在屏幕上方，看屏幕时眼神会往下。",
+   "source": "自拍 · 眼神"
+  },
+  {
+   "id": "tip-selfie-4",
+   "subs": [
+    "selfie"
+   ],
+   "tip": "一次多拍几张，换几个角度，再挑最好的",
+   "problem": "自拍小技巧",
+   "principle": "细微的角度差别对自拍效果影响很大。",
+   "source": "自拍 · 方法"
+  }
+ ]
 }

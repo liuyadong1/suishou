@@ -10,7 +10,7 @@
 :root{--bg:#0D1112;--panel:#171D1F;--line:#2B3437;--fg:#EEF2F1;--muted:#95A29F;--target:#4FD6B8;--now:#F3A443;--warn:#F07A6A;color-scheme:dark;
   --body:"PingFang SC","MiSans","HarmonyOS Sans SC","Noto Sans SC","Microsoft YaHei",system-ui,sans-serif}
 body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);font-size:14px;line-height:1.6}
-main{max-width:760px;margin:0 auto;padding-inline:16px;padding-block:calc(env(safe-area-inset-top,0px) + 20px) calc(40px + env(safe-area-inset-bottom,0px));display:grid;gap:20px}
+main{max-width:760px;margin:0 auto;padding-inline:16px;padding-block:calc(env(safe-area-inset-top,0px) + 20px) calc(40px + env(safe-area-inset-bottom,0px));display:grid;gap:18px}
 a{color:var(--target)}
 h1{margin:0;font-size:24px;text-wrap:balance}
 .lead{margin:0;color:var(--muted)}
@@ -18,19 +18,22 @@ h1{margin:0;font-size:24px;text-wrap:balance}
 .stat{background:var(--panel);border-radius:12px;padding:10px 12px}
 .stat b{display:block;font-size:22px;font-variant-numeric:tabular-nums}
 .stat span{font-size:12px;color:var(--muted)}
+.books{background:var(--panel);border-radius:12px;padding:12px 14px;display:grid;gap:4px;font-size:13px}
+.books p{margin:0}
 .filters{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
-.filters button{flex:0 0 auto;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
-.filters button[aria-pressed="true"]{border-color:var(--target);color:var(--fg)}
+.filters button,.tools button{flex:0 0 auto;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+.filters button[aria-pressed="true"],.tools button[aria-pressed="true"]{border-color:var(--target);color:var(--fg)}
 .tools{display:flex;flex-wrap:wrap;gap:8px}
-.btn{border:0;background:var(--fg);color:var(--bg);border-radius:999px;padding:9px 16px;font:inherit;font-weight:600;cursor:pointer;text-decoration:none}
-.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line);font-weight:500}
+.btn{border:0;background:var(--fg);color:var(--bg);border-radius:999px;padding:9px 16px;font:inherit;font-weight:600;cursor:pointer}
 .list{display:grid;gap:10px}
 .rule{background:var(--panel);border-radius:14px;padding:14px 16px;display:grid;gap:6px;min-width:0}
 .rule header{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .rule h2{margin:0;font-size:16px}
-.tag{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
-.tag.detect{border-color:var(--now);color:var(--now)}
-.tag.tip{border-color:var(--target);color:var(--target)}
+.tag{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.tag.on{border-color:var(--target);color:var(--target)}
+.tag.off{border-color:var(--warn);color:var(--warn)}
+.tag.p1,.tag.p2{border-color:var(--warn);color:var(--warn)}
+.tag.p3{border-color:var(--now);color:var(--now)}
 .rule p{margin:0}
 .muted{color:var(--muted)}
 .cond{font-family:ui-monospace,monospace;font-size:12px;color:var(--muted);overflow-wrap:anywhere}
@@ -49,58 +52,70 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--target);outline-off
     <p class="lead" id="lead">读取中…</p>
   </div>
   <div class="stats">
-    <div class="stat"><b id="nDetect">-</b><span>检测规则</span></div>
-    <div class="stat"><b id="nTip">-</b><span>场景技巧</span></div>
+    <div class="stat"><b id="nRules">-</b><span>检测规则</span></div>
+    <div class="stat"><b id="nLive">-</b><span>网页版可实时运行</span></div>
     <div class="stat"><b id="nUp">0</b><span>“有用”反馈</span></div>
     <div class="stat"><b id="nDown">0</b><span>“不准”反馈</span></div>
   </div>
+  <div class="books" id="books"></div>
   <div class="tools">
     <button class="btn" id="copyFb">复制反馈数据</button>
-    <button class="btn ghost" id="onlyFb" aria-pressed="false">只看有反馈的规则</button>
+    <button id="onlyLive" aria-pressed="false">只看可实时运行</button>
+    <button id="onlyFb" aria-pressed="false">只看有反馈的</button>
   </div>
   <p class="muted" id="copyNote" hidden></p>
-  <div class="filters" id="filters" role="group" aria-label="按场景筛选"></div>
+  <div class="filters" id="filters" role="group" aria-label="按类别筛选"></div>
   <div class="list" id="list"></div>
 </main>
 <script type="module">
+import {compileRules, runnable, APP_SIGNALS} from './engine.js';
 const $ = s => document.querySelector(s);
-const NAMES = {vista:'山海远景', city:'城市建筑', sunset:'日出日落', night:'夜景灯光', macro:'花草特写', full:'全身照', half:'半身照', travel:'人景打卡', sit:'坐姿', selfie:'自拍'};
+const CAT = {stability: '防抖', focus: '对焦', exposure: '曝光', light: '光线', composition: '构图', portrait: '人像', creative: '创意', app: '场景补充', tip: '技巧'};
+const SCENE = {landscape: '风景', portrait: '人像', selfie: '自拍', group: '合影', child: '儿童', pet: '宠物', plant_flower: '花草', food_still: '美食静物', building: '建筑', interior: '室内', street: '街拍', sports: '运动', night: '夜景', water: '水景', macro: '微距', '*': '全部场景'};
+const SUB = {vista: '山海远景', city: '城市建筑', sunset: '日出日落', night: '夜景灯光', macro: '花草特写', full: '全身照', half: '半身照', travel: '人景打卡', sit: '坐姿', selfie: '自拍'};
+const CONF = {high: '高', medium: '中', low: '低'};
 const read = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch(e){ return d; } };
 const fb = read('ss_fb_v1', {}), log = read('ss_fblog_v1', []);
-let filter = 'all', onlyFb = false, lib = null;
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const plain = s => esc(s).replace(/\{[^{}]*\}/g, '…');
+let filter = 'all', onlyLive = false, onlyFb = false, json = null, lib = null;
+const condText = w => typeof w === 'string' ? w : ['all', 'any'].filter(k => w[k]).map(k => (k === 'all' ? '同时满足：' : '满足任一：') + w[k].map(c => `${c[0]} ${c[1]} ${JSON.stringify(c[2])}`).join('；')).join('　');
 function render(){
-  const rules = lib.rules.filter(r => (filter === 'all' || r.subs === '*' || r.subs.includes(filter)) && (!onlyFb || fb[r.id]));
-  $('#list').innerHTML = rules.length ? rules.map(r => {
-    const e = fb[r.id];
-    const subs = r.subs === '*' ? '全部场景' : r.subs.map(s => NAMES[s] || s).join('、');
+  const items = [...json.rules.map((r, i) => ({r, c: lib.rules[i], kind: r.subs ? 'app' : r.category})), ...(json.tips || []).map((r, i) => ({r, c: lib.tips[i], kind: 'tip'}))];
+  const shown = items.filter(({r, c, kind}) => (filter === 'all' || kind === filter) && (!onlyLive || kind === 'tip' || runnable(c)) && (!onlyFb || fb[r.id]));
+  $('#list').innerHTML = shown.length ? shown.map(({r, c, kind}) => {
+    const live = kind === 'tip' || runnable(c), e = fb[r.id];
+    const where = r.subs ? r.subs.map(s => SUB[s] || s).join('、') : (r.scenes || []).map(s => SCENE[s] || s).join('、');
+    const missing = c.signals.filter(s => !APP_SIGNALS.includes(s));
     return `<article class="rule">
-      <header><span class="tag ${r.kind === 'tip' ? 'tip' : 'detect'}">${r.kind === 'tip' ? '技巧' : '检测'}</span><h2>${plain(r.title)}</h2><span class="tag">${esc(r.id)}</span></header>
-      <p>${plain(r.text)}</p>
-      ${r.principle ? `<p class="muted">原理：${esc(r.principle)}</p>` : ''}
-      <p class="muted">适用：${subs}${r.source ? ` · 出处：${esc(r.source)}` : ''}</p>
-      ${r.when ? `<p class="cond">触发条件：${esc(r.when)}</p>` : ''}
+      <header><span class="tag">${CAT[kind] || kind}</span>${r.priority ? `<span class="tag p${r.priority}">优先级 ${r.priority}</span>` : ''}<span class="tag ${live ? 'on' : 'off'}">${live ? '可实时运行' : '待 APK 版'}</span><span class="tag">${esc(r.id)}</span></header>
+      <h2>${plain(r.tip ?? '（豁免规则，不显示提示）')}</h2>
+      <p class="muted">${plain(r.problem)}</p>
+      ${r.note ? `<p class="muted">说明：${esc(r.note)}</p>` : ''}${r.principle ? `<p class="muted">原理：${esc(r.principle)}</p>` : ''}
+      <p class="muted">适用：${where}${r.confidence ? ` · 可信度 ${CONF[r.confidence] || r.confidence}` : ''}${r.source ? ` · 出处：${esc(r.source)}` : ''}</p>
+      ${r.when ? `<p class="cond">条件：${esc(condText(r.when))}</p>` : ''}
+      ${missing.length ? `<p class="cond">暂缺信号：${esc(missing.join('、'))}</p>` : ''}
       ${e ? `<p class="fbline">反馈：有用 <b>${e.up || 0}</b> · 不准 <b class="down">${e.down || 0}</b></p>` : ''}
     </article>`;
   }).join('') : '<p class="muted">这个筛选下没有规则。</p>';
 }
 fetch('./rules.json', {cache: 'no-cache'}).then(r => r.json()).then(j => {
-  lib = j;
-  const detect = j.rules.filter(r => (r.kind || 'detect') === 'detect').length, tip = j.rules.filter(r => r.kind === 'tip').length;
-  $('#nDetect').textContent = detect; $('#nTip').textContent = tip;
+  json = j; lib = compileRules(j);
+  const mainN = j.rules.filter(r => !r.subs).length, liveN = lib.rules.filter(r => !r.subs && runnable(r)).length, extN = j.rules.length - mainN;
+  $('#nRules').textContent = j.rules.length; $('#nLive').textContent = liveN + extN;
   let up = 0, down = 0; Object.values(fb).forEach(e => { up += e.up || 0; down += e.down || 0; });
   $('#nUp').textContent = up; $('#nDown').textContent = down;
-  $('#lead').textContent = `版本 v${j.version} · 更新于 ${j.updated || ''}。在点评页点「有用 / 不准」后，反馈会汇总在这里。`;
-  const keys = ['all', ...Object.keys(NAMES)];
-  $('#filters').innerHTML = keys.map(k => `<button data-k="${k}" aria-pressed="${k === filter}">${k === 'all' ? '全部' : NAMES[k]}</button>`).join('');
+  $('#lead').textContent = `版本 v${j.version}（场景补充 ${j.app_extensions_version || '-'}）· 主库 ${mainN} 条 · 场景补充 ${extN} 条 · 技巧 ${(j.tips || []).length} 条 · 拍后建议 ${(j.post_rules || []).length} 条。`;
+  $('#books').innerHTML = '<p class="muted">知识来源</p>' + (j.source_books || []).map(b => `<p><b>${esc(b.id)}</b> ${esc(b.title)} · ${esc(b.author)}（${esc(b.approx_year)}）</p>`).join('');
+  const cats = ['all', ...new Set(j.rules.map(r => r.subs ? 'app' : r.category)), 'tip'];
+  $('#filters').innerHTML = cats.map(k => `<button data-k="${k}" aria-pressed="${k === filter}">${k === 'all' ? '全部' : CAT[k] || k}</button>`).join('');
   render();
 }).catch(e => { $('#lead').textContent = '规则库读取失败：' + e.message; });
 $('#filters').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; filter = b.dataset.k; document.querySelectorAll('#filters button').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); render(); });
-$('#onlyFb').addEventListener('click', e => { onlyFb = !onlyFb; e.currentTarget.setAttribute('aria-pressed', onlyFb ? 'true' : 'false'); e.currentTarget.textContent = onlyFb ? '显示全部规则' : '只看有反馈的规则'; render(); });
+$('#onlyLive').addEventListener('click', e => { onlyLive = !onlyLive; e.currentTarget.setAttribute('aria-pressed', String(onlyLive)); render(); });
+$('#onlyFb').addEventListener('click', e => { onlyFb = !onlyFb; e.currentTarget.setAttribute('aria-pressed', String(onlyFb)); render(); });
 $('#copyFb').addEventListener('click', () => {
-  const text = JSON.stringify({version: lib && lib.version, summary: fb, log}, null, 1);
-  const note = $('#copyNote');
+  const text = JSON.stringify({version: json && json.version, ext: json && json.app_extensions_version, summary: fb, log}, null, 1), note = $('#copyNote');
   navigator.clipboard.writeText(text).then(() => { note.hidden = false; note.textContent = `已复制 ${log.length} 条反馈记录，直接粘贴发给 Claude 即可。`; })
     .catch(() => { note.hidden = false; note.textContent = '这个浏览器不允许复制，请截图反馈统计发给 Claude。'; });
 });

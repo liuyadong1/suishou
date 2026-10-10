@@ -97,6 +97,10 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 .compare figcaption b{font-family:var(--display);font-size:18px;color:var(--fg);margin-left:4px}
 .row{display:flex;flex-wrap:wrap;gap:8px}
 .hint-wrap{display:grid;gap:6px}
+.src{margin:0;font-size:11px;color:var(--muted);padding-left:4px}
+.post{background:var(--panel);border-radius:12px;padding:10px 12px;display:grid;gap:2px}
+.post strong{font-size:14px}
+.post p{margin:0;font-size:13px;color:var(--muted)}
 .fb{display:flex;gap:8px;justify-content:flex-end}
 .fbb{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:999px;padding:5px 14px;font-size:12px}
 .fbb[aria-pressed="true"]{border-color:var(--target);color:var(--fg)}
@@ -116,7 +120,7 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 <body>
 <div id="app">
   <header class="top">
-    <div class="brand">随手大师<small>拍照教练 v0.5</small></div>
+    <div class="brand">随手大师<small>拍照教练 v0.6</small></div>
     <div class="seg" role="group" aria-label="拍摄模式">
       <button id="m-auto" data-mode="auto" aria-pressed="true">自动</button>
       <button id="m-scene" data-mode="scene" aria-pressed="false">风景</button>
@@ -172,13 +176,13 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 <div class="toast" id="toast" hidden></div>
 
 <script type="module">
-import {compileRules, runRules} from './engine.js';
+import {compileRules, runRules, runPost, SUB_SCENES} from './engine.js';
 const $ = s => document.querySelector(s);
 const view = $('#view'), vctx = view.getContext('2d');
 const css = getComputedStyle(document.documentElement);
 const C = { target: css.getPropertyValue('--target').trim(), now: css.getPropertyValue('--now').trim(), warn: css.getPropertyValue('--warn').trim() };
 const FONT = '"PingFang SC","MiSans","Noto Sans SC",sans-serif';
-const S = { mode:'auto', pose:'none', live:false, human:null, video:null, stream:null, sensor:null, busy:false, lastRun:0, lastF:null, lastE:null, shown:[], active:new Map(), still:null, isSample:true, prev:null, sheetOpen:false, scoreS:null, facing:'environment', sub:'vista', subManual:false, rec:'vista', recCand:null, recSince:0, shake:null, nightOn:true, nightBusy:false, expComp:null };
+const S = { mode:'auto', pose:'none', live:false, human:null, video:null, stream:null, sensor:null, busy:false, lastRun:0, lastF:null, lastE:null, shown:[], active:new Map(), still:null, isSample:true, prev:null, sheetOpen:false, scoreS:null, facing:'environment', rs:new Map(), muted:new Map(), pitch:null, stableSince:null, prevThumb:null, prevKp:null, idleSince:null, sub:'vista', subManual:false, rec:'vista', recCand:null, recSince:0, shake:null, nightOn:true, nightBusy:false, expComp:null };
 const SUBS = {
   vista:{kind:'scene', name:'山海远景'}, city:{kind:'scene', name:'城市建筑'}, sunset:{kind:'scene', name:'日出日落'}, night:{kind:'scene', name:'夜景灯光'}, macro:{kind:'scene', name:'花草特写'},
   full:{kind:'portrait', name:'全身照'}, half:{kind:'portrait', name:'半身照'}, travel:{kind:'portrait', name:'人景打卡'}, sit:{kind:'portrait', name:'坐姿'}, selfie:{kind:'portrait', name:'自拍'},
@@ -274,7 +278,11 @@ function imageStats(src, W, H){
   sc.width = w; sc.height = h; sctx.drawImage(src, 0, 0, w, h);
   const d = sctx.getImageData(0, 0, w, h).data; const L = new Float32Array(w * h);
   let sum = 0, hi = 0, lo = 0;
-  for(let i = 0, j = 0; i < L.length; i++, j += 4){ const v = 0.299*d[j] + 0.587*d[j+1] + 0.114*d[j+2]; L[i] = v; sum += v; if(v > 248) hi++; if(v < 10) lo++; }
+  let brightN = 0, darkN = 0, rS = 0, gS = 0, bS2 = 0, rgS = 0, ybS = 0, rgQ = 0, ybQ = 0;
+  for(let i = 0, j = 0; i < L.length; i++, j += 4){
+    const v = 0.299*d[j] + 0.587*d[j+1] + 0.114*d[j+2]; L[i] = v; sum += v; if(v > 248) hi++; if(v < 10) lo++; if(v > 220) brightN++; if(v < 35) darkN++;
+    rS += d[j]; gS += d[j+1]; bS2 += d[j+2]; const rg = d[j] - d[j+1], yb = (d[j] + d[j+1])/2 - d[j+2]; rgS += rg; ybS += yb; rgQ += rg*rg; ybQ += yb*yb;
+  }
   const mean = sum / L.length;
   const box = (x, y, rw, rh) => { const x0 = clamp(Math.floor(x*w), 0, w-1), y0 = clamp(Math.floor(y*h), 0, h-1); const x1 = clamp(Math.ceil((x+rw)*w), x0+1, w), y1 = clamp(Math.ceil((y+rh)*h), y0+1, h); return [x0,y0,x1,y1]; };
   const region = (x, y, rw, rh) => { const [x0,y0,x1,y1] = box(x,y,rw,rh); let s = 0, n = 0; for(let yy = y0; yy < y1; yy++) for(let xx = x0; xx < x1; xx++){ s += L[yy*w+xx]; n++; } return n ? s/n : mean; };
@@ -286,12 +294,16 @@ function imageStats(src, W, H){
   const gc = 6, gr = Math.max(4, Math.round(gc*h/w)), cw = w/gc, chh = h/gr; let sunMean = 0, sunX = 0.5, sunY = 0.5;
   for(let r = 0; r < gr; r++) for(let c = 0; c < gc; c++){ const m = region(c/gc, r/gr, 1/gc, 1/gr); if(m > sunMean){ sunMean = m; sunX = (c + 0.5)/gc; sunY = (r + 0.5)/gr; } }
   // edges: vertical lines (city), sharpness (macro), top band, lower third texture
+  let plainN = 0, oriH = 0, oriV = 0, oriD = 0; const GX = new Float32Array(w*h);
   let vN = 0, vSumL = 0, vNL = 0, vSumR = 0, vNR = 0, topE = 0, topN = 0, lowE = 0, lowN = 0;
   let cS = 0, cN = 0, bS = 0, bN = 0, lw = 0, lx = 0, ly = 0, lxx = 0, lyy = 0;
   for(let y = 1; y < h - 1; y++){
     for(let x = 1; x < w - 1; x++){
       const i = y*w + x, gx = L[i+1] - L[i-1], gy = L[i+w] - L[i-w], agx = Math.abs(gx), agy = Math.abs(gy);
       const strong = agx + agy > 50;
+      if(agx + agy < 3) plainN++;
+      GX[i] = agx;
+      if(strong){ if(agy > 2.5*agx) oriH++; else if(agx > 2.5*agy) oriV++; else oriD++; }
       if(agx > 40 && agy < agx*0.5){ vN++; const a = Math.atan(gy/gx); if(x < w/2){ vSumL += a; vNL++; } else { vSumR += a; vNR++; } }
       if(y < h*0.07){ topN++; if(strong) topE++; }
       if(y > h*0.7){ lowN++; if(strong) lowE++; }
@@ -306,21 +318,41 @@ function imageStats(src, W, H){
   const mL = vNL ? vSumL/vNL : 0, mR = vNR ? vSumR/vNR : 0;
   const sharpX = lw ? lx/lw : 0.5, sharpY = lw ? ly/lw : 0.5;
   const spread = lw ? Math.sqrt(Math.max(0, lxx/lw - sharpX*sharpX) + Math.max(0, lyy/lw - sharpY*sharpY)) : 1;
-  // symmetry around a vertical axis (best shift)
-  let bestDiff = Infinity, bestShift = 0;
-  for(let s = -16; s <= 16; s += 2){
-    const c2 = w + 2*s; let diff = 0, n = 0;
-    for(let y = 0; y < h; y += 2){ for(let x = Math.max(0, c2 - w + 1); x < Math.min(w, c2/2); x += 2){ const xm = c2 - 1 - x; if(xm < 0 || xm >= w) continue; diff += Math.abs(L[y*w+x] - L[y*w+xm]); n++; } }
-    if(n > 200){ diff /= n; if(diff < bestDiff){ bestDiff = diff; bestShift = s; } }
+  // symmetry of vertical-edge structure around a vertical axis (best shift)
+  let bestSym = 0, bestShift = 0, gxE = 0;
+  for(let i = 0; i < GX.length; i++) gxE += GX[i];
+  const gxMean = gxE/GX.length;
+  if(gxMean >= 4){
+    for(let s = -16; s <= 16; s += 2){
+      const c2 = w + 2*s; let diff = 0, tot = 0;
+      for(let y = 1; y < h - 1; y += 2){ for(let x = Math.max(1, c2 - w + 1); x < Math.min(w - 1, c2/2); x += 2){ const xm = c2 - 1 - x; if(xm < 1 || xm >= w - 1) continue; const a1 = GX[y*w+x], a2 = GX[y*w+xm]; diff += Math.abs(a1 - a2); tot += a1 + a2; } }
+      if(tot > 0){ const sc2 = 1 - diff/tot; if(sc2 > bestSym){ bestSym = sc2; bestShift = s; } }
+    }
   }
   const contrast = sd(0, 0, 1, 1) || 1;
+  const N = w*h, rm = rS/N, gm = gS/N, bm = bS2/N, lumM = Math.max(1, mean);
+  const cast = Math.max(Math.abs(rm - gm), Math.abs(gm - bm), Math.abs(rm - bm))/lumM;
+  const mrg = rgS/N, myb = ybS/N, colorfulness = Math.sqrt(Math.max(0, rgQ/N - mrg*mrg) + Math.max(0, ybQ/N - myb*myb)) + 0.3*Math.hypot(mrg, myb);
+  const oriN = oriH + oriV + oriD;
+  const ring = (region(0, 0, 1, 0.12) + region(0, 0.88, 1, 0.12) + region(0, 0, 0.12, 1) + region(0.88, 0, 0.12, 1))/4, core = region(0.25, 0.25, 0.5, 0.5);
+  const corner = (x, y) => region(x, y, 0.12, 0.12) < 0.35*mean && sd(x, y, 0.12, 0.12) < 8;
+  const leftM = region(0, 0, 0.5, 1), rightM = region(0.5, 0, 0.5, 1);
+  const rgb = (x, y, rw, rh) => { const [x0,y0,x1,y1] = box(x,y,rw,rh); let r = 0, g = 0, b = 0, n = 0; for(let yy = y0; yy < y1; yy++) for(let xx = x0; xx < x1; xx++){ const j = (yy*w+xx)*4; r += d[j]; g += d[j+1]; b += d[j+2]; n++; } return n ? [r/n, g/n, b/n] : [rm, gm, bm]; };
+  const clip = (x, y, rw, rh) => { const [x0,y0,x1,y1] = box(x,y,rw,rh); let c = 0, n = 0; for(let yy = y0; yy < y1; yy++) for(let xx = x0; xx < x1; xx++){ if(L[yy*w+xx] > 245) c++; n++; } return n ? c/n : 0; };
+  const vedge = (x, y, rw, rh) => { const [x0,y0,x1,y1] = box(x,y,rw,rh); let c = 0, n = 0; for(let yy = Math.max(1,y0); yy < Math.min(h-1,y1); yy++) for(let xx = Math.max(1,x0); xx < Math.min(w-1,x1); xx++){ const i = yy*w+xx, gx = Math.abs(L[i+1]-L[i-1]), gy = Math.abs(L[i+w]-L[i-w]); if(gx > 30 && gy < gx*0.5) c++; n++; } return n ? c/n : 0; };
+  const thumb = new Uint8Array(Math.floor(w/4)*Math.floor(h/4)); for(let y = 0, k = 0; y < Math.floor(h/4); y++) for(let x = 0; x < Math.floor(w/4); x++, k++) thumb[k] = L[(y*4)*w + x*4];
   return {
     mean, hi: hi/L.length, lo: lo/L.length, region, sd, horizon: findHorizon(L, w, h),
     warm: warm/(w*h), sunMean, sunX, sunY,
     vdens: vN/inner, keystone: (mL - mR)*180/Math.PI,
     topEdge: topN ? topE/topN : 0, lowEdge: lowN ? lowE/lowN : 0, lowSd: sd(0, 0.7, 1, 0.3),
     centerSharp: cN ? cS/cN : 0, borderSharp: bN ? bS/bN : 0, sharpX, sharpY, spread,
-    symScore: Math.max(0, 1 - bestDiff/(contrast*1.2)), symShift: bestShift/w,
+    symScore: Math.max(0, Math.min(1, (bestSym - 0.4)/0.5)), symShift: bestShift/w,
+    brightRatio: brightN/N, darkRatio: darkN/N, colorCast: Math.max(0, Math.min(1, (cast - 0.15)*2)), chaos: Math.max(0, Math.min(1, (colorfulness - 50)/50)),
+    plainRatio: plainN/inner, diagRatio: oriN ? oriD/oriN : 0, domAngle: !oriN ? 0 : (oriV >= oriH && oriV >= oriD ? 90 : oriH >= oriD ? 0 : 45),
+    frameScore: core > ring*1.6 && ring < 100 ? Math.max(0, Math.min(1, (core - ring)/core)) : 0, contrast: contrast/lumM,
+    cornerDark: corner(0, 0) || corner(0.88, 0) || corner(0, 0.88) || corner(0.88, 0.88), sideRatio: Math.max(leftM, rightM)/Math.max(1, Math.min(leftM, rightM)),
+    rgb, clip, vedge, thumb,
   };
 }
 function lineFit(p){ const n = p.length; let sx=0, sy=0, sxx=0, sxy=0; for(const [x,y] of p){ sx+=x; sy+=y; sxx+=x*x; sxy+=x*y; } const den = n*sxx - sx*sx || 1; const a = (n*sxy - sx*sy) / den; return {a, b: (sy - a*sx) / n}; }
@@ -362,6 +394,8 @@ function bodyFrom(res, W, H){
   const ankles = [g.la, g.ra].filter(Boolean), knees = [g.lk, g.rk].filter(Boolean), elbows = [g.le, g.re].filter(Boolean);
   const fc = g.nose || [sm[0], sm[1] - T*0.45], fr = Math.max(sw*0.3, 6);
   const eyes = [k.leftEye, k.rightEye].filter(Boolean), ears = [k.leftEar, k.rightEar].filter(Boolean);
+  let yaw = null, facing = 0, eyesPt = null;
+  if(eyes.length === 2){ const em = mid(eyes[0], eyes[1]); eyesPt = [em[0]/W, em[1]/H]; if(k.nose){ const r = (k.nose[0] - em[0])/Math.max(1, dist(eyes[0], eyes[1])); yaw = Math.min(90, Math.abs(r)*150); facing = Math.sign(r); } }
   const eyeY = eyes.length ? eyes.reduce((s, p) => s + p[1], 0)/eyes.length/H : (g.nose ? (g.nose[1] - sw*0.08)/H : null);
   const faceW = ears.length === 2 ? dist(ears[0], ears[1])*1.25/W : eyes.length === 2 ? dist(eyes[0], eyes[1])*2.6/W : sw*0.55/W;
   const headTopN = g.nose ? (g.nose[1] - 0.6*Math.abs(sm[1] - g.nose[1])) / H : (sm[1] - T*0.75) / H;
@@ -374,7 +408,7 @@ function bodyFrom(res, W, H){
   }
   return {
     g, T, origin, eyeY, faceW, sitting, thighShort,
-    faceC: [fc[0]/W, fc[1]/H],
+    faceC: [fc[0]/W, fc[1]/H], yaw, facing, eyesPt,
     neckY: g.nose ? (g.nose[1]*0.35 + sm[1]*0.65)/H : sm[1]/H,
     elbowY: elbows.length ? Math.max(...elbows.map(p => p[1]))/H : null,
     square: sw/T > 0.85,
@@ -451,7 +485,7 @@ const OK_RULE = {id:'ok', kind:'ok', pri:9, pen:0, title:'构图不错', sub:'�
 function loadRules(){
   return fetch('./rules.json', {cache:'no-cache'}).then(r => r.json()).then(j => {
     LIB = compileRules(j);
-    LIB.count = {detect: LIB.rules.filter(r => r.kind === 'detect').length, tip: LIB.rules.filter(r => r.kind === 'tip').length};
+    LIB.count = {detect: LIB.rules.length, main: LIB.rules.filter(r => !r.subs).length, ext: LIB.rules.filter(r => r.subs).length, tip: LIB.tips.length, post: LIB.post.length};
     if(!S.live) renderStill();
   }).catch(e => { $('#status').textContent = '规则库加载失败：' + e.message; });
 }
@@ -489,14 +523,217 @@ function buildFeatures(F){
   }
   return f;
 }
-function evaluate(F){
+/* ---------- signals for the rule library (see rules.json → signals) ---------- */
+const clamp01 = v => Math.max(0, Math.min(1, v));
+function sunTimes(date){
+  // 按时区估算经度、默认北纬 35°（中国中部），足够判断黄金时段
+  const rad = Math.PI/180, tz = -date.getTimezoneOffset()/60, lat = 35;
+  const day = Math.floor((date - new Date(date.getFullYear(), 0, 0))/864e5);
+  const decl = 23.44*Math.sin(rad*360/365*(day - 81)), B = rad*360/365*(day - 81);
+  const eot = 9.87*Math.sin(2*B) - 7.53*Math.cos(B) - 1.5*Math.sin(B);
+  const ha = Math.acos(Math.max(-1, Math.min(1, -Math.tan(lat*rad)*Math.tan(decl*rad))))/rad;
+  const noon = 12 + (tz*15 - tz*15)/15 - eot/60;
+  return {rise: noon - ha/15, set: noon + ha/15, noon};
+}
+function timePhase(date = new Date()){
+  const t = sunTimes(date), h = date.getHours() + date.getMinutes()/60;
+  if(h < t.rise - 0.5 || h > t.set + 0.5) return 'night';
+  if(h < t.rise || h > t.set) return 'blue_hour';
+  if(h < t.rise + 1 || h > t.set - 1) return 'golden_hour';
+  if(Math.abs(h - t.noon) < 2) return 'midday';
+  return 'normal';
+}
+function trackMotion(F){
+  // 画面运动（主体区域帧差）与人物静止时长，只在实时取景时计算
+  const now = performance.now();
+  let motion = null, idle = null;
+  if(F.thumb && S.prevThumb && S.prevThumb.length === F.thumb.length){
+    let d = 0; for(let i = 0; i < F.thumb.length; i++) d += Math.abs(F.thumb[i] - S.prevThumb[i]);
+    const raw = d/F.thumb.length/255*8, shakeAdj = S.shake ? Math.min(0.5, S.shake/30) : 0;
+    motion = clamp01(raw - shakeAdj);
+  }
+  S.prevThumb = F.thumb;
+  const P = F.person;
+  if(P){
+    if(S.prevKp){
+      let s = 0, n = 0;
+      for(const k in P.g){ const a = P.g[k], b = S.prevKp[k]; if(a && b){ s += Math.hypot(a[0]-b[0], a[1]-b[1])/P.T; n++; } }
+      const mv = n ? s/n : 1;
+      if(mv < 0.04){ if(!S.idleSince) S.idleSince = now; } else S.idleSince = null;
+    }
+    S.prevKp = P.g; idle = S.idleSince ? (now - S.idleSince)/1000 : 0;
+  } else { S.prevKp = null; S.idleSince = null; }
+  return {motion, idle};
+}
+function buildSignals(F, after){
+  const f = buildFeatures(F), P = F.person, W = F.W, H = F.H, kind = SUBS[S.sub].kind, hz = F.horizon;
+  const live = !after && S.live, front = S.facing === 'user';
+  const s = {scene: (SUB_SCENES[S.sub] || [])[0], after_capture: !!after};
+  s.mean_luma = F.mean/255; s.highlight_clip_ratio = F.hi; s.shadow_clip_ratio = F.lo;
+  s.bright_area_ratio = F.brightRatio; s.dark_area_ratio = F.darkRatio;
+  s.color_cast_score = F.colorCast; s.colorfulness_chaos = F.chaos;
+  s.horizon_detected = !!hz; s.horizon_y_ratio = hz ? hz.y : -1;
+  s.horizon_tilt_abs_deg = F.sensor != null ? Math.abs(F.sensor) : hz ? Math.abs(hz.angle) : 0;
+  s.sky_texture = hz ? clamp01((hz.skySd || 0)/40) : 0; s.sky_ratio = hz ? hz.y : 0;
+  // subject: the person when there is one, otherwise the sharpest cluster
+  let box = null;
+  if(P){
+    const pts = Object.values(P.g).filter(Boolean);
+    const xs = pts.map(p => p[0]/W), ys = pts.map(p => p[1]/H);
+    const x0 = Math.max(0, Math.min(...xs) - 0.03), x1 = Math.min(1, Math.max(...xs) + 0.03);
+    const y0 = Math.max(0, P.headTop), y1 = Math.min(1, Math.max(...ys) + 0.02);
+    box = [x0, y0, x1 - x0, y1 - y0];
+  } else if(F.spread < 0.25 && F.centerSharp > F.borderSharp*1.3){
+    const r = Math.max(0.06, F.spread*1.6); box = [clamp01(F.sharpX - r), clamp01(F.sharpY - r), Math.min(2*r, 1), Math.min(2*r, 1)];
+  }
+  s.subject_detected = !!box;
+  s.subject_box = box;
+  if(box){
+    const [bx, by, bw, bh] = box, cx = bx + bw/2, cy = by + bh/2;
+    const subjL = F.region(bx, by, bw, bh), rgb = F.rgb(bx, by, bw, bh), all = F.rgb(0, 0, 1, 1);
+    s.subject_cx = cx; s.subject_cy = cy;
+    s.subject_area_ratio = bw*bh; s.subject_dist_to_center = Math.hypot(cx - 0.5, cy - 0.5);
+    s.subject_bottom_y = by + bh;
+    s.subject_touches_edges = (bx < 0.02) + (by < 0.02) + (bx + bw > 0.98) + (by + bh > 0.98);
+    s.subject_mean_luma = subjL/255;
+    s.subject_bg_color_similarity = clamp01(1 - Math.hypot(rgb[0]-all[0], rgb[1]-all[1], rgb[2]-all[2])/120);
+    const [tx, ty] = nearestThirds(cx + 0.001, cy + 0.001); s.third_x = tx; s.third_y = ty;
+  }
+  s.background_clutter = clamp01(F.borderSharp/18); s.plain_bg_ratio = F.plainRatio;
+  s.symmetry_score = F.symScore; s.symmetry_axis_offset = F.symShift; s.symmetry_axis_offset_abs = Math.abs(F.symShift);
+  s.diagonal_line_score = F.diagRatio; s.dominant_line_angle_deg = F.domAngle; s.frame_border_score = F.frameScore;
+  s.vertical_convergence = clamp01(Math.max(0, F.keystone)/10);
+  s.digital_zoom_x = 1; s.focal_equiv_mm = front ? 24 : 26;
+  s.time_phase = timePhase();
+  s.weather_overcast = ['normal', 'midday', 'golden_hour'].includes(s.time_phase) && F.contrast < 0.32 && s.mean_luma > 0.3 && F.warm < 0.08 && F.hi < 0.01;
+  s.sun_in_frame = F.sunMean > 250 && F.hi > 0.003 && F.hi < 0.08;
+  s.lens_obstruction = F.cornerDark && s.mean_luma > 0.2 ? 0.5 : 0;
+  s.single_side_light = F.sideRatio > 2;
+  if(live){
+    s.device_pitch_deg = S.pitch; s.device_shake = S.shake == null ? null : clamp01(S.shake/10);
+    s.device_stable_s = S.stableSince ? (performance.now() - S.stableSince)/1000 : 0;
+    const tr = S.stream && S.stream.getVideoTracks()[0], set = tr && tr.getSettings ? tr.getSettings() : {};
+    s.exposure_time_s = set.exposureTime ? set.exposureTime/10000 : (s.mean_luma < 0.25 ? 0.05 : 0.01);
+    const m = trackMotion(F); s.subject_motion = m.motion; s.subject_idle_s = m.idle;
+    if(S.pitch != null){ s.camera_vs_eye_deg = -S.pitch; s.camera_above_subject_deg = Math.max(0, -S.pitch); if(S.sub === 'selfie' || front) s.camera_below_face = S.pitch > 12; }
+  }
+  // people
+  s.person_count = P ? 1 : 0; s.persons_are_subject = !!P && kind === 'portrait';
+  s.face_count = P && P.g.nose ? 1 : 0;
+  if(P){
+    s.subject_class = 'person';
+    s.face_area_ratio = P.faceW*P.faceW*1.3*W/H; s.eyes_y = P.eyeY; s.shoulders_square = P.square;
+    if(P.yaw != null) s.face_yaw_abs_deg = P.yaw;
+    const [fx, fy, fw, fh] = P.face, nx = fx/W, ny = fy/H, nw = fw/W, nh = fh/H;
+    const fl = Math.max(1, F.region(nx, ny, nw, nh)), left = F.region(nx, ny, nw/2, nh), right = F.region(nx + nw/2, ny, nw/2, nh);
+    const modeling = Math.abs(left - right)/fl;
+    s.face_highlight_clip = F.clip(nx, ny, nw, nh); s.face_modeling = clamp01(modeling); s.face_hard_shadow = clamp01((modeling - 0.2)*2);
+    s.face_dappled_light = clamp01((F.sd(nx, ny, nw, nh)/fl - 0.2)*2);
+    const fc = F.rgb(nx, ny, nw, nh); s.skin_cast = fc[2] > fc[0]*1.02 ? 'blue' : (fc[1] > fc[0]*1.02 && fc[1] > fc[2]) ? 'green' : 'none';
+    s.hair_bg_contrast = P.headTop > 0.06 ? Math.abs(F.region(nx, P.headTop - 0.05, nw, 0.04) - F.region(nx, P.headTop + 0.005, nw, 0.04))/255 : null;
+    s.subject_luma_vs_bg = fl/Math.max(1, F.mean);
+    const joints = [P.g.lk, P.g.rk, P.g.la, P.g.ra, P.g.le, P.g.re, P.g.lw, P.g.rw].filter(Boolean);
+    s.limb_cut_at_joint = joints.some(p => p[1]/H > 0.965 || p[0]/W < 0.015 || p[0]/W > 0.985);
+    s.head_merge_object = P.headTop > 0.04 && F.vedge(P.faceC[0] - P.faceW/4, Math.max(0, P.headTop - 0.15), P.faceW/2, Math.min(0.15, P.headTop)) > 0.35;
+    if(P.yaw != null && P.yaw > 15 && P.facing){ const fwd = P.facing > 0 ? 1 - P.cx : P.cx, back = 1 - fwd; s.facing_space_ratio = fwd/Math.max(0.01, back); }
+    s.light_direction = kind !== 'portrait' ? (s.sun_in_frame ? 'back' : 'unknown') : s.subject_luma_vs_bg < 0.6 && s.mean_luma > 0.35 ? 'back' : modeling > 0.25 ? 'side' : fl > F.mean*1.05 ? 'front' : 'unknown';
+    s.eyes_pt = P.eyesPt;
+  } else if(box){
+    s.subject_luma_vs_bg = (s.subject_mean_luma*255)/Math.max(1, F.mean);
+    s.light_direction = s.sun_in_frame ? 'back' : 'unknown';
+  } else {
+    s.light_direction = s.sun_in_frame ? 'back' : 'unknown';
+  }
+  s.bg_bright_distractor = box && F.sunMean > 235 && F.sunMean > F.mean*1.8 && F.brightRatio < 0.1 && !(F.sunX > box[0] && F.sunX < box[0] + box[2] && F.sunY > box[1] && F.sunY < box[1] + box[3]) && F.sunMean > (s.subject_mean_luma || 0)*255*1.4 ? 0.6 : 0;
+  return {...f, ...s};
+}
+function evaluate(F, after){
   const sub = S.sub, kind = SUBS[sub].kind;
   const base = {portrait: kind === 'portrait' && !!F.person, scene: kind === 'scene', sub};
-  if(!LIB) return {...base, rules: [], display: [], score: '--', tip: null, features: null, errors: []};
-  const f = buildFeatures(F);
-  const res = runRules(LIB, f, {sub, tipIndex: Math.floor(Date.now()/6000)});
-  const display = res.rules.some(r => r.pen > 0) ? res.rules : [OK_RULE, ...res.rules, res.tip].filter(Boolean);
-  return {...base, rules: res.rules, display, score: res.score, tip: res.tip, features: f, errors: res.errors};
+  if(!LIB) return {...base, rules: [], score: '--', tip: null, signals: null, unknown: [], suppressed: [], errors: []};
+  const sig = buildSignals(F, after);
+  const res = runRules(LIB, sig, {sub, tipIndex: Math.floor(Date.now()/6000)});
+  return {...base, ...res, signals: sig};
+}
+const hasGraphic = r => !!(r.draw || (r.overlay && r.overlay.type !== 'banner'));
+function okCard(tip){ return {...OK_RULE, sub: tip ? tip.title : '可以按快门了'}; }
+// 照片点评：全部命中的规则都列出，画面上画前 2 个图形
+function stillDisplay(E){
+  const maxOv = (LIB && LIB.policy.max_overlays_on_screen) || 2;
+  return {text: E.rules.length ? E.rules : [okCard(E.tip)], ov: E.rules.filter(hasGraphic).slice(0, maxOv)};
+}
+// 实时取景：按规则库 display_policy 显示（连续 N 帧才出、冷却、静音、1 条文字 + 2 个图形）
+function livePolicy(E){
+  const pol = (LIB && LIB.policy) || {}, now = performance.now();
+  const minF = pol.min_stable_frames_before_tip ?? 8, cool = (pol.same_rule_cooldown_s ?? 4)*1000;
+  const maxText = pol.max_text_tips_on_screen ?? 1, maxOv = pol.max_overlays_on_screen ?? 2;
+  const ids = new Set(E.rules.map(r => r.id));
+  for(const r of E.rules){ const st = S.rs.get(r.id) || {streak: 0, hidden: -1e9, shown: false}; st.streak++; S.rs.set(r.id, st); }
+  for(const [id, st] of S.rs){ if(!ids.has(id)){ if(st.shown){ st.hidden = now; st.shown = false; } st.streak = 0; } }
+  const ok = E.rules.filter(r => {
+    const st = S.rs.get(r.id);
+    if((S.muted.get(r.id) || 0) > now) return false;
+    if(st.streak < minF) return false;
+    if(!st.shown && now - st.hidden < cool) return false;
+    return true;
+  });
+  ok.forEach(r => { S.rs.get(r.id).shown = true; });
+  const text = ok.slice(0, maxText);
+  return {text: text.length ? text : (E.rules.length ? [] : [okCard(E.tip)]), ov: ok.filter(hasGraphic).slice(0, maxOv)};
+}
+// 规则库叠加图形 → 画面绘制指令
+function libDraw(r, E){
+  const o = r.overlay; if(!o) return null;
+  const p = o.params || {}, s = E.signals || {};
+  const subj = s.subject_box, cx = s.subject_cx, cy = s.subject_cy;
+  switch(o.type){
+    case 'level_line':
+      if(p.axis === 'vertical') return {type: 'keystone', ks: Math.max(3, s.keystone || 3)};
+      return s.has_tilt ? {type: 'tilt', theta: s.tilt, src: s.tilt_src} : null;
+    case 'target_point': return subj ? {type: 'arrow2', x: cx, y: cy, tx: s.third_x, ty: s.third_y, label: '主体放这里'} : null;
+    case 'move_arrow': {
+      if(p.target_horizon_y != null && s.horizon_detected) return {type: 'hline', y: s.horizon_y_ratio, t: Number(p.target_horizon_y)};
+      const map = {up: '镜头往上抬一点 ↑', down: '镜头往下压一点 ↓', sidestep: '↔ 横向挪一步', orbit_side: '绕到侧面拍', ahead_of_subject: '绕到主体前方', toward_facing_side: '朝向那边多留空', include_or_crop_mid_limb: '别切在关节上', change_angle: '换个角度试试'};
+      if(p.direction === 'up' || p.direction === 'down') return {type: 'bigArrow', dir: p.direction, label: map[p.direction]};
+      return {type: 'pill', label: map[p.direction] || '换个位置', where: 'top', color: 'now'};
+    }
+    case 'focus_box': {
+      let b = subj;
+      if(p.at === 'eyes' && s.eyes_pt) b = [s.eyes_pt[0] - 0.08, s.eyes_pt[1] - 0.04, 0.16, 0.08];
+      if(p.at === 'bright_sky' || p.at === 'moon') b = [s.sun_x - 0.08, s.sun_y - 0.06, 0.16, 0.12];
+      if(p.at === 'lit_side') b = [0.15, 0.35, 0.3, 0.3];
+      return b ? {type: 'focus', b, label: p.at === 'eyes' ? '点眼睛对焦' : p.at === 'bright_sky' ? '点亮的天空' : '点这里'} : {type: 'pill', label: '点一下主体对焦', where: 'top', color: 'target'};
+    }
+    case 'distance_hint': return {type: 'corners', dir: p.dir === 'back' ? 'in' : 'out', label: p.dir === 'back' ? '后退一步' : '靠近一点'};
+    case 'height_icon': return {type: 'pill', label: p.dir === 'raise' ? '↑ 手机举高一点' : p.dir === 'lower' ? '↓ 手机放低一点' : '放低手机或换个角度', where: 'mid', color: 'now'};
+    case 'ev_hint': return {type: 'ev', dir: p.dir === 'down' ? 'down' : 'up', label: p.dir === 'down' ? '亮度调低一点' : '亮度调高一点'};
+    case 'sun_icon': return {type: 'pill', label: ({side: '绕到侧面，让光从侧面来', opposite: '绕到对面，逆光拍', side_back: '让光从侧后方来', face_bright_side: '让脸侧对亮处'})[p.go_to] || '换个光线方向', where: 'top', color: 'now'};
+    case 'hand_shield': return {type: 'shield'};
+    case 'symmetry_axis': return {type: 'sym', c: 0.5 + (s.symmetry_axis_offset || 0)};
+    case 'diagonal_guide': return {type: 'diag'};
+    case 'frame_highlight': return {type: 'frame'};
+    case 'steady_icon': return {type: 'shakepill'};
+    case 'burst_icon': return {type: 'pill', label: '多按几次快门，挑最好的', where: 'bottom', color: 'now'};
+    case 'hdr_toggle': return {type: 'pill', label: p.to === 'off' ? '关闭 HDR' : '打开 HDR（系统相机里）', where: 'top', color: 'now'};
+    case 'bw_preview': return {type: 'bw'};
+    case 'pose_silhouette': return {type: 'pill', label: '试试：' + (p.poses || []).slice(0, 2).join(' / '), where: 'mid', color: 'target'};
+    case 'eye_line': return {type: 'guideH', y: p.y ?? 1/3, from: s.eyes_y, label: '眼睛放这里'};
+    case 'group_triangle': return {type: 'pill', label: '高低错落，站成三角形', where: 'mid', color: 'target'};
+    case 'turn_hint': return {type: 'pill', label: '身体侧一点，脸转回镜头', where: 'mid', color: 'target'};
+    default: return null;
+  }
+}
+const LIB_PICTO = {level_line: 'tilt', target_point: 'macropos', focus_box: 'focus', distance_hint: 'closer', ev_hint: 'bright', sun_icon: 'backlight', hand_shield: 'hand', symmetry_axis: 'sym', diagonal_guide: 'diagonal', frame_highlight: 'frame', steady_icon: 'shake', burst_icon: 'burst', hdr_toggle: 'hdr', bw_preview: 'bw', pose_silhouette: 'pose', eye_line: 'eyes', group_triangle: 'triangle', turn_hint: 'turn'};
+const CAT_PICTO = {stability: 'shake', focus: 'focus', exposure: 'bright', light: 'backlight', composition: 'idea', portrait: 'pose', creative: 'bw'};
+function libPicto(r){
+  const o = r.overlay, p = (o && o.params) || {};
+  if(!o) return CAT_PICTO[r.category] || 'idea';
+  if(o.type === 'level_line') return p.axis === 'vertical' ? 'keystone' : 'tilt';
+  if(o.type === 'move_arrow') return p.direction === 'up' ? 'pitchUp' : p.direction === 'down' ? 'pitchDown' : p.target_horizon_y != null ? 'pitchUp' : 'panLeft';
+  if(o.type === 'distance_hint') return p.dir === 'back' ? 'toobig' : 'closer';
+  if(o.type === 'height_icon') return p.dir === 'raise' ? 'selfieAngle' : 'legs';
+  if(o.type === 'ev_hint') return p.dir === 'down' ? 'bright' : 'dark';
+  return LIB_PICTO[o.type] || CAT_PICTO[r.category] || 'idea';
 }
 
 /* ---------- drawing ---------- */
@@ -564,7 +801,7 @@ function drawOverlay(ctx, F, E, shown){
     }
   }
   for(const r of shown){
-    const d = r.draw; if(!d) continue;
+    const d = r.draw || libDraw(r, E); if(!d) continue;
     if(d.type === 'tilt'){
       const cx = W/2, cy = H/2, len = Math.min(W, H)*0.38, right = d.theta > 0, sx = right ? W*0.9 : W*0.1;
       let lineY;
@@ -646,6 +883,47 @@ function drawOverlay(ctx, F, E, shown){
       pills.push(['脸放进框里', W/2, H*0.38 + W*0.21*1.32 + lw*3, C.target, 'center']);
     } else if(d.type === 'shakepill'){
       pills.push(['拿稳，绿了再拍', W/2, H*0.03 + lw*5, C.now, 'center']);
+    } else if(d.type === 'focus'){
+      const [bx, by, bw, bh] = d.b, x = bx*W, y = by*H, w2 = bw*W, h2 = bh*H, m = Math.min(w2, h2)*0.25;
+      ctx.strokeStyle = C.target; ctx.lineWidth = lw*1.8; ctx.beginPath();
+      for(const [px, py, sx, sy] of [[x, y, 1, 1], [x + w2, y, -1, 1], [x, y + h2, 1, -1], [x + w2, y + h2, -1, -1]]){ ctx.moveTo(px + sx*m, py); ctx.lineTo(px, py); ctx.lineTo(px, py + sy*m); }
+      ctx.stroke(); pills.push([d.label, x + w2/2, y + h2 + lw*3, C.target, 'center']);
+    } else if(d.type === 'pill'){
+      const y = d.where === 'bottom' ? H*0.7 : d.where === 'mid' ? H*0.45 : H*0.1;
+      pills.push([d.label, W/2, y, d.color === 'target' ? C.target : C.now, 'center']);
+    } else if(d.type === 'bigArrow'){
+      const up = d.dir === 'up';
+      arrow(ctx, W/2, up ? H*0.62 : H*0.38, W/2, up ? H*0.38 : H*0.62, lw*1.4, C.now);
+      pills.push([d.label, W/2, up ? H*0.3 : H*0.66, C.now, 'center']);
+    } else if(d.type === 'corners'){
+      const out = d.dir === 'out', a = Math.min(W, H)*0.07;
+      for(const [cx2, cy2, sx, sy] of [[W*0.2, H*0.2, -1, -1], [W*0.8, H*0.2, 1, -1], [W*0.2, H*0.8, -1, 1], [W*0.8, H*0.8, 1, 1]]){
+        const x1 = cx2 - sx*a*(out ? 0 : 1), y1 = cy2 - sy*a*(out ? 0 : 1), x2 = cx2 + sx*a*(out ? 1 : 0), y2 = cy2 + sy*a*(out ? 1 : 0);
+        out ? arrow(ctx, x1, y1, x2, y2, lw, C.now) : arrow(ctx, x2, y2, x1, y1, lw, C.now);
+      }
+      pills.push([d.label, W/2, H*0.12, C.now, 'center']);
+    } else if(d.type === 'ev'){
+      const x = W*0.86, y = H*0.45, r0 = Math.min(W, H)*0.035;
+      ctx.strokeStyle = C.now; ctx.lineWidth = lw*1.4; ctx.beginPath(); ctx.arc(x, y, r0, 0, Math.PI*2);
+      for(let i = 0; i < 8; i++){ const t = i*Math.PI/4; ctx.moveTo(x + Math.cos(t)*r0*1.4, y + Math.sin(t)*r0*1.4); ctx.lineTo(x + Math.cos(t)*r0*1.9, y + Math.sin(t)*r0*1.9); }
+      ctx.stroke();
+      arrow(ctx, x, d.dir === 'up' ? y + r0*5 : y + r0*2.6, x, d.dir === 'up' ? y + r0*2.6 : y + r0*5, lw, C.now);
+      pills.push([d.label, x - r0*2.5, y + r0*5.6, C.now, 'right']);
+    } else if(d.type === 'shield'){
+      ctx.fillStyle = C.now; ctx.globalAlpha = 0.25; ctx.fillRect(0, 0, W, H*0.08); ctx.globalAlpha = 1;
+      pills.push(['用手挡住上方的阳光', W/2, H*0.09, C.now, 'center']);
+    } else if(d.type === 'diag'){
+      ctx.strokeStyle = C.target; ctx.lineWidth = lw*1.4; ctx.setLineDash([lw*4, lw*3]);
+      ctx.beginPath(); ctx.moveTo(0, H); ctx.lineTo(W, 0); ctx.stroke(); ctx.setLineDash([]);
+      pills.push(['沿对角线放主体', W/2, H*0.52, C.target, 'center']);
+    } else if(d.type === 'frame'){
+      ctx.strokeStyle = C.target; ctx.lineWidth = lw*1.6; ctx.setLineDash([lw*4, lw*3]); ctx.strokeRect(W*0.12, H*0.12, W*0.76, H*0.76); ctx.setLineDash([]);
+      pills.push(['主角放进这个画框里', W/2, H*0.13, C.target, 'center']);
+    } else if(d.type === 'bw'){
+      const iw = W*0.3, ih = iw*H/W, ix = W - iw - W*0.03, iy = H*0.16;
+      ctx.save(); ctx.filter = 'grayscale(1)'; ctx.drawImage(ctx.canvas, 0, 0, W, H, ix, iy, iw, ih); ctx.restore();
+      ctx.strokeStyle = '#EEF2F1'; ctx.lineWidth = lw; ctx.strokeRect(ix, iy, iw, ih);
+      pills.push(['黑白预览', ix + iw/2, iy + ih + lw*2, C.target, 'center']);
     } else if(d.type === 'pose'){
       ctx.fillStyle = C.now; ctx.beginPath(); ctx.arc(d.pt[0], d.pt[1], lw*3, 0, Math.PI*2); ctx.fill();
       pills.push([d.short, d.pt[0] + lw*5, d.pt[1] - ph/2, C.now, 'left']);
@@ -695,14 +973,22 @@ const PIC = {
   sitlevel: `<circle cx="42" cy="22" r="5" stroke="${PW}"/><path d="M42 27 V40 H54 V54 M42 40 L36 54" stroke="${PW}"/><rect x="8" y="16" width="6" height="14" rx="2" stroke="${PO}"/><path d="M14 22 H36" stroke="${PT}" stroke-dasharray="3 3"/><path d="M11 40 V52" stroke="${PO}"/><path d="M7 36 L11 32 L15 36" stroke="${PO}" transform="rotate(180 11 34)"/>`,
   knees: `<circle cx="20" cy="14" r="5" stroke="${PW}"/><path d="M20 19 V36 L44 44 L56 58" stroke="${PW}"/><path d="M20 36 L40 54" stroke="${PT}" stroke-dasharray="3 3"/><path d="M48 30 A16 16 0 0 1 56 44" stroke="${PO}"/>`,
   oval: `<ellipse cx="32" cy="28" rx="16" ry="21" stroke="${PT}" stroke-dasharray="4 3"/><circle cx="32" cy="28" r="9" stroke="${PW}"/><path d="M14 60 Q32 46 50 60" stroke="${PW}"/>`,
+  focus: `<path d="M8 20 V8 H20 M44 8 H56 V20 M56 44 V56 H44 M20 56 H8 V44" stroke="${PT}"/><circle cx="32" cy="32" r="8" stroke="${PO}"/><path d="M32 18 V22 M32 42 V46 M18 32 H22 M42 32 H46" stroke="${PO}"/>`,
+  hand: `<circle cx="48" cy="12" r="6" stroke="${PO}"/><path d="M20 40 V18 a3 3 0 0 1 6 0 V30 M26 16 a3 3 0 0 1 6 0 V30 M32 18 a3 3 0 0 1 6 0 V32 M38 24 a3 3 0 0 1 6 0 V42 Q44 56 32 58 Q20 58 16 46 L12 36 a3 3 0 0 1 5 -3 L20 38" stroke="${PT}"/>`,
+  diagonal: `<rect x="6" y="8" width="52" height="48" rx="4" stroke="${PG}"/><path d="M8 54 L56 10" stroke="${PT}" stroke-dasharray="4 3"/><circle cx="24" cy="39" r="5" stroke="${PO}"/>`,
+  frame: `<rect x="4" y="4" width="56" height="56" rx="4" stroke="${PG}"/><path d="M14 58 V22 Q32 6 50 22 V58" stroke="${PT}"/><circle cx="32" cy="38" r="5" stroke="${PO}"/><path d="M26 56 Q32 46 38 56" stroke="${PO}"/>`,
+  burst: `<rect x="10" y="16" width="30" height="36" rx="4" stroke="${PG}"/><rect x="16" y="12" width="30" height="36" rx="4" stroke="${PG}"/><rect x="22" y="8" width="30" height="36" rx="4" stroke="${PT}"/><path d="M50 52 l6 6 M54 46 l6 2" stroke="${PO}"/>`,
+  hdr: `<rect x="6" y="16" width="52" height="32" rx="6" stroke="${PT}"/><path d="M14 26 V38 M14 32 H22 M22 26 V38 M28 26 V38 H32 Q38 38 38 32 Q38 26 32 26 Z M44 38 V26 H49 Q53 26 53 30 Q53 33 49 33 H44 M49 33 L53 38" stroke="${PT}" stroke-width="2.4"/>`,
+  bw: `<rect x="6" y="10" width="52" height="44" rx="4" stroke="${PW}"/><path d="M32 10 V54" stroke="${PW}"/><rect x="33.5" y="11.5" width="23" height="41" fill="${PW}" fill-opacity="0.35" stroke="none"/><circle cx="32" cy="32" r="10" stroke="${PT}"/>`,
+  triangle: `<circle cx="32" cy="12" r="5" stroke="${PW}"/><circle cx="16" cy="30" r="5" stroke="${PW}"/><circle cx="48" cy="30" r="5" stroke="${PW}"/><path d="M32 20 L18 40 H46 Z" stroke="${PT}" stroke-dasharray="3 3"/><path d="M10 58 H54" stroke="${PG}"/>`,
   idea: `<path d="M32 8 A15 15 0 0 0 23 35 V42 H41 V35 A15 15 0 0 0 32 8 Z" stroke="${PT}"/><path d="M25 49 H39 M27 55 H37" stroke="${PT}"/><path d="M32 18 V26" stroke="${PO}"/>`,
   selfieAngle: `<circle cx="22" cy="40" r="7" stroke="${PW}"/><path d="M12 60 Q22 50 32 60" stroke="${PW}"/><rect x="40" y="8" width="8" height="16" rx="2" stroke="${PO}" transform="rotate(25 44 16)"/><path d="M40 22 L26 34" stroke="${PT}" stroke-dasharray="3 3"/>`,
 };
 function pictoFor(r){
-  const body = PIC[r.picto] || PIC.idea;
+  const body = PIC[r.picto || libPicto(r)] || PIC.idea;
   return svg64(r.flip ? flipX(body) : body);
 }
-function hintHTML(r){ return `<div class="hint"><span class="pic">${pictoFor(r)}</span><strong>${r.title}</strong><p>${r.sub}</p></div>`; }
+function hintHTML(r){ return `<div class="hint" data-rule="${r.kind === 'detect' ? r.id : ''}"><span class="pic">${pictoFor(r)}</span><strong>${r.title}</strong><p>${r.sub}</p></div>`; }
 const OK_HINT = `<div class="hint"><span class="pic">${svg64(PIC.ok)}</span><strong>构图不错</strong><p>可以按快门了</p></div>`;
 function renderHints(rules, score){
   $('#hints').innerHTML = rules.length ? rules.slice(0, 2).map(hintHTML).join('') : OK_HINT;
@@ -713,8 +999,9 @@ function renderHints(rules, score){
 async function renderStill(){
   const c = S.still; if(!c) return;
   const F = await analyze(c, c.width, c.height); applyRecommendation(F, false); const E = evaluate(F);
-  view.width = c.width; view.height = c.height; vctx.drawImage(c, 0, 0); drawOverlay(vctx, F, E, E.rules);
-  renderHints(E.display, E.score);
+  const D = stillDisplay(E);
+  view.width = c.width; view.height = c.height; vctx.drawImage(c, 0, 0); drawOverlay(vctx, F, E, D.ov);
+  renderHints(D.text, E.score);
   $('#tag').hidden = false; $('#tag').textContent = S.isSample ? '示例画面' : '上一张照片';
 }
 function drawSample(){
@@ -739,6 +1026,8 @@ function onMotion(e){
   const r = e.rotationRate;
   if(r && r.alpha != null){ const m = Math.hypot(r.alpha || 0, r.beta || 0, r.gamma || 0); S.shake = S.shake == null ? m : S.shake*0.85 + m*0.15; }
   const a = e.accelerationIncludingGravity; if(!a || a.x == null || a.y == null) return;
+  if(a.z != null){ const pt = Math.atan2(a.z, Math.hypot(a.x, a.y))*180/Math.PI; S.pitch = S.pitch == null ? pt : S.pitch*0.8 + pt*0.2; }
+  if(S.shake != null){ if(S.shake < 3){ if(!S.stableSince) S.stableSince = performance.now(); } else S.stableSince = null; }
   const ang = Math.atan2(-a.x, a.y)*180/Math.PI, dev = ang - Math.round(ang/90)*90;
   S.sensor = S.sensor == null ? dev : S.sensor*0.8 + dev*0.2;
 }
@@ -759,13 +1048,13 @@ function loop(){
     const front = S.facing === 'user';
     fctx.setTransform(front ? -1 : 1, 0, 0, 1, front ? W : 0, 0); fctx.drawImage(v, 0, 0, W, H); fctx.setTransform(1, 0, 0, 1, 0, 0);
     vctx.drawImage(frame, 0, 0);
-    if(S.lastF) drawOverlay(vctx, S.lastF, S.lastE, S.shown);
+    if(S.lastF) drawOverlay(vctx, S.lastF, S.lastE, S.shownOv || []);
     if(!S.busy && !S.nightBusy && performance.now() - S.lastRun > 90){
       S.busy = true; S.lastRun = performance.now();
       if(work.width !== W || work.height !== H){ work.width = W; work.height = H; }
       wctx.drawImage(frame, 0, 0);
       analyze(work, W, H, true).then(F => {
-        applyRecommendation(F, true); const E = evaluate(F); S.lastF = F; S.lastE = E; S.shown = debounce(E.display);
+        applyRecommendation(F, true); const E = evaluate(F); S.lastF = F; S.lastE = E; const D = livePolicy(E); S.shown = D.text; S.shownOv = D.ov;
         S.scoreS = S.scoreS == null ? E.score : Math.round(S.scoreS*0.7 + E.score*0.3);
         renderHints(S.shown, S.scoreS);
       }).catch(() => {}).finally(() => { S.busy = false; });
@@ -962,18 +1251,20 @@ function recordFeedback(id, v, ctx){
 }
 function hintFbHTML(r){
   const fb = r.kind === 'detect' ? `<div class="fb"><button class="fbb" data-fb="up" data-rule="${r.id}" aria-pressed="false">有用</button><button class="fbb" data-fb="down" data-rule="${r.id}" aria-pressed="false">不准</button></div>` : '';
-  return `<div class="hint-wrap">${hintHTML(r)}${fb}</div>`;
+  const src = r.source ? `<p class="src">出处：${r.source}${r.confidence ? ` · 可信度 ${({high: '高', medium: '中', low: '低'})[r.confidence] || r.confidence}` : ''}</p>` : '';
+  return `<div class="hint-wrap">${hintHTML(r)}${src}${fb}</div>`;
 }
 function debugHTML(E){
   if(!LIB) return '';
-  const fired = E.rules.length ? E.rules.map(r => `<li><b>${r.id}</b> ${r.title}（扣 ${r.pen} 分）${r.principle ? `<br><span>${r.principle}</span>` : ''}</li>`).join('') : '<li>没有规则命中</li>';
-  const f = compactFeatures(E.features);
+  const fired = E.rules.length ? E.rules.map(r => `<li><b>${r.id}</b> ${r.title}（优先级 ${r.priority}，扣 ${r.pen} 分）<br><span>${r.sub}${r.source ? ' · ' + r.source : ''}</span></li>`).join('') : '<li>没有规则命中</li>';
+  const f = compactFeatures(E.signals);
   const feats = Object.keys(f).map(k => `<span>${k}</span><span>${f[k]}</span>`).join('');
   const errs = E.errors.length ? `<p class="note" style="color:var(--warn)">规则执行出错：${E.errors.join('；')}</p>` : '';
   return `<details class="dbg"><summary>规则命中详情（验证用）</summary>
-    <p class="note">规则库 v${LIB.version} · 检测规则 ${LIB.count.detect} 条 · 场景技巧 ${LIB.count.tip} 条 · 当前场景：${SUBS[E.sub].name}</p>
+    <p class="note">规则库 v${LIB.version}（补充 ${LIB.ext}）· 主库 ${LIB.count.main} 条 · 补充 ${LIB.count.ext} 条 · 技巧 ${LIB.count.tip} 条 · 当前场景：${SUBS[E.sub].name}</p>
     <ol>${fired}</ol>${errs}
-    <p class="note">画面特征值</p><div class="feat">${feats}</div>
+    <p class="note">被抑制：${E.suppressed.join('、') || '无'}；因信号暂缺未判断：${E.unknown.length} 条</p>
+    <p class="note">画面信号值</p><div class="feat">${feats}</div>
     <a class="btn ghost" href="./rules.html">查看完整规则库和反馈统计</a>
   </details>`;
 }
@@ -1038,9 +1329,10 @@ async function showResult(c, opts = {}){
   S.current = {c, file: opts.file || null, saved: !!opts.fromAlbum};
   S.sheetOpen = true; $('#sheet').hidden = false; $('#sheet').scrollTop = 0;
   const body = $('#resBody'); body.innerHTML = '<p class="note">正在点评…</p>';
-  const F = await analyze(c, c.width, c.height); applyRecommendation(F, false); const E = evaluate(F);
+  const F = await analyze(c, c.width, c.height); applyRecommendation(F, false); const E = evaluate(F, true); const D = stillDisplay(E);
+  const post = LIB ? runPost(LIB, E.signals) : [];
   const o = document.createElement('canvas'); o.width = c.width; o.height = c.height;
-  const og = o.getContext('2d'); og.drawImage(c, 0, 0); drawOverlay(og, F, E, E.rules);
+  const og = o.getContext('2d'); og.drawImage(c, 0, 0); drawOverlay(og, F, E, D.ov);
   const crop = suggestCrop(c, F, E); let E2 = null;
   if(crop){ const F2 = await analyze(crop, crop.width, crop.height); E2 = evaluate(F2); }
   const prev = S.prev;
@@ -1049,7 +1341,8 @@ async function showResult(c, opts = {}){
     <div id="resImg"></div>
     <div class="row">${S.current.saved ? '<button class="btn ghost" id="savePhoto">这张来自相册，已保存</button>' : '<button class="btn" id="savePhoto">保存到相册</button>'}</div>
     <h3>怎么改</h3>
-    <div class="list">${E.display.length ? E.display.map(hintFbHTML).join('') : OK_HINT}</div>
+    <div class="list">${D.text.map(hintFbHTML).join('')}</div>
+    ${post.length ? `<h3>拍后建议</h3><div class="list">${post.map(p => `<div class="post"><strong>${p.problem}</strong><p>${p.action}</p><p class="src">出处：${p.source}</p></div>`).join('')}</div>` : ''}
     ${debugHTML(E)}
     ${opts.single ? `<h3>夜景合成效果</h3><p class="note">连拍 12 帧对齐叠加，噪点更少、暗部更亮。</p><div class="compare"><figure><img id="imgSingle" alt="单帧"><figcaption>单帧</figcaption></figure><figure><img id="imgNight" alt="夜景合成"><figcaption>夜景合成</figcaption></figure></div>` : ''}
     ${crop ? `<h3>建议构图</h3><p class="note">自动摆正并按三分线裁剪后的效果，下一张照着这个拍。</p>
@@ -1062,7 +1355,7 @@ async function showResult(c, opts = {}){
     <button class="btn ghost" id="again">按提示再拍一张</button>`;
   $('#resImg').appendChild(o);
   body.querySelectorAll('.fbb').forEach(b => b.onclick = () => {
-    recordFeedback(b.dataset.rule, b.dataset.fb, {sub: E.sub, score: E.score, f: E.features});
+    recordFeedback(b.dataset.rule, b.dataset.fb, {sub: E.sub, score: E.score, f: E.signals});
     b.parentElement.querySelectorAll('.fbb').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
     toast(b.dataset.fb === 'up' ? '已记录：这条提示有用' : '已记录：这条提示不准，我们会调整');
   });
@@ -1098,6 +1391,7 @@ $('#btnFlip').addEventListener('click', flipCamera);
 $('#fileCam').addEventListener('change', e => { handleFile(e.target.files[0], false); e.target.value = ''; });
 $('#fileAlbum').addEventListener('change', e => { handleFile(e.target.files[0], true); e.target.value = ''; });
 $('#closeSheet').addEventListener('click', () => requestLeave(closeSheet));
+$('#hints').addEventListener('click', e => { const h = e.target.closest('.hint'); if(!h || !h.dataset.rule || !LIB) return; const sec = LIB.policy.dismissed_rule_mute_s ?? 120; S.muted.set(h.dataset.rule, performance.now() + sec*1000); h.remove(); toast(`这条提示 ${Math.round(sec/60)} 分钟内不再出现`); });
 $('#cfSave').addEventListener('click', () => { savePhoto(); hideConfirm(); const n = pendingLeave; pendingLeave = null; if(n) n(); });
 $('#cfDiscard').addEventListener('click', () => { if(S.current) S.current.saved = true; hideConfirm(); const n = pendingLeave; pendingLeave = null; if(n) n(); });
 $('#cfCancel').addEventListener('click', () => { pendingLeave = null; hideConfirm(); });
