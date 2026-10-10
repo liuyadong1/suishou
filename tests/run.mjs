@@ -15,6 +15,7 @@ const BASE = {
   has_person: false, p_cx: 0.5, p_cy: 0.5, pos_t: 0.5, pos_d: 0, head_top: -1, full: false, ankle_y: -1, knee_y: -1, eye_y: -1, elbow_y: -1,
   square: false, height_ratio: -1, neck_y: -1, sitting: false, thigh_short: false, face_w: -1, face_x: 0.5, face_y: 0.5, face_rect: null, face_dark: false,
   pose_on: false, pose_score: -1, pose_hint: '', pose_short: '', pose_pt: null,
+  has_pitch: false, pitch: 0, corner_block: 0, face_sd: -1, head_pole: 0,
 };
 const PERSON = {has_person: true, p_cx: 0.34, p_cy: 0.3, pos_t: 1/3, pos_d: -0.007, head_top: 0.08, full: true, ankle_y: 0.94, knee_y: 0.72, eye_y: 0.2, elbow_y: 0.5, height_ratio: 0.86, neck_y: 0.24, face_w: 0.12, face_x: 0.34, face_y: 0.2, face_rect: [100, 100, 60, 66]};
 const SELFIE = {has_person: true, p_cx: 0.5, p_cy: 0.6, pos_t: 2/3, pos_d: 0.16, head_top: 0.1, eye_y: 0.36, face_w: 0.4, face_x: 0.5, face_y: 0.38, face_rect: [300, 300, 200, 220], height_ratio: 0.9};
@@ -63,6 +64,14 @@ const CASES = [
   {name: '人像：姿势到位', sub: 'full', f: {...PERSON, pose_on: true, pose_score: 88}, expect: ['P-poseok']},
   {name: '人像：偏暗', sub: 'sit', f: {...PERSON, mean: 40}, expect: ['P-dark']},
   {name: '人像：过曝', sub: 'sit', f: {...PERSON, hi: 0.2}, expect: ['P-bright']},
+  {name: '任意：手指挡镜头', sub: 'vista', f: {corner_block: 0.8}, expect: ['C-finger']},
+  {name: '自拍：手指挡镜头', sub: 'selfie', f: {...SELFIE, corner_block: 0.9}, expect: ['C-finger']},
+  {name: '半身：仰拍', sub: 'half', f: {...PERSON, full: false, eye_y: 0.33, has_pitch: true, pitch: 22}, expect: ['H-lowangle']},
+  {name: '半身：前置不判仰拍', sub: 'half', f: {...PERSON, full: false, eye_y: 0.33, has_pitch: true, pitch: 22, front: true}, expect: [], absentAll: true},
+  {name: '半身：贴脸太近', sub: 'half', f: {...PERSON, full: false, eye_y: 0.33, face_w: 0.5}, expect: ['H-close']},
+  {name: '全身：杆子长头上', sub: 'full', f: {...PERSON, head_pole: 0.85}, expect: ['P-pole']},
+  {name: '半身：脸上光斑', sub: 'half', f: {...PERSON, full: false, eye_y: 0.33, face_sd: 60}, expect: ['P-dapple']},
+  {name: '打卡：切在膝盖', sub: 'travel', f: {...PERSON, full: false, height_ratio: 0.3, knee_y: 0.96}, expect: ['H-knee']},
 ];
 
 const SUBS = ['vista', 'city', 'sunset', 'night', 'macro', 'full', 'half', 'travel', 'sit', 'selfie'];

@@ -116,7 +116,7 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 <body>
 <div id="app">
   <header class="top">
-    <div class="brand">随手大师<small>拍照教练 v0.5</small></div>
+    <div class="brand">随手大师<small>拍照教练 v0.6</small></div>
     <div class="seg" role="group" aria-label="拍摄模式">
       <button id="m-auto" data-mode="auto" aria-pressed="true">自动</button>
       <button id="m-scene" data-mode="scene" aria-pressed="false">风景</button>
@@ -178,7 +178,7 @@ const view = $('#view'), vctx = view.getContext('2d');
 const css = getComputedStyle(document.documentElement);
 const C = { target: css.getPropertyValue('--target').trim(), now: css.getPropertyValue('--now').trim(), warn: css.getPropertyValue('--warn').trim() };
 const FONT = '"PingFang SC","MiSans","Noto Sans SC",sans-serif';
-const S = { mode:'auto', pose:'none', live:false, human:null, video:null, stream:null, sensor:null, busy:false, lastRun:0, lastF:null, lastE:null, shown:[], active:new Map(), still:null, isSample:true, prev:null, sheetOpen:false, scoreS:null, facing:'environment', sub:'vista', subManual:false, rec:'vista', recCand:null, recSince:0, shake:null, nightOn:true, nightBusy:false, expComp:null };
+const S = { mode:'auto', pose:'none', live:false, human:null, video:null, stream:null, sensor:null, busy:false, lastRun:0, lastF:null, lastE:null, shown:[], active:new Map(), still:null, isSample:true, prev:null, sheetOpen:false, scoreS:null, facing:'environment', sub:'vista', subManual:false, rec:'vista', recCand:null, recSince:0, shake:null, pitch:null, nightOn:true, nightBusy:false, expComp:null };
 const SUBS = {
   vista:{kind:'scene', name:'山海远景'}, city:{kind:'scene', name:'城市建筑'}, sunset:{kind:'scene', name:'日出日落'}, night:{kind:'scene', name:'夜景灯光'}, macro:{kind:'scene', name:'花草特写'},
   full:{kind:'portrait', name:'全身照'}, half:{kind:'portrait', name:'半身照'}, travel:{kind:'portrait', name:'人景打卡'}, sit:{kind:'portrait', name:'坐姿'}, selfie:{kind:'portrait', name:'自拍'},
@@ -314,7 +314,25 @@ function imageStats(src, W, H){
     if(n > 200){ diff /= n; if(diff < bestDiff){ bestDiff = diff; bestShift = s; } }
   }
   const contrast = sd(0, 0, 1, 1) || 1;
+  // 竖直线条覆盖率：框内某一列（±1）上有强竖边的行占比，用来发现“杆子长在头上”
+  const vline = (x, y, rw, rh) => {
+    const [x0,y0,x1,y1] = box(x,y,rw,rh); if(x1 - x0 < 3 || y1 - y0 < 4) return 0;
+    const cols = new Uint16Array(w);
+    for(let yy = Math.max(1, y0); yy < Math.min(h - 1, y1); yy++) for(let xx = Math.max(1, x0); xx < Math.min(w - 1, x1); xx++){
+      const i = yy*w + xx, gx = Math.abs(L[i+1] - L[i-1]), gy = Math.abs(L[i+w] - L[i-w]);
+      if(gx > 30 && gy < gx*0.5) cols[xx]++;
+    }
+    let best = 0; for(let xx = x0 + 1; xx < x1 - 1; xx++) best = Math.max(best, Math.max(cols[xx-1], cols[xx], cols[xx+1]));
+    return best / (y1 - y0);
+  };
+  // 角落遮挡（手指/手机壳）：某个角落明显比整体暗、而且几乎没有纹理
+  let cornerBlock = 0;
+  if(mean > 70) for(const [cx, cy] of [[0,0],[0.82,0],[0,0.82],[0.82,0.82]]){
+    const m = region(cx, cy, 0.18, 0.18), v = sd(cx, cy, 0.18, 0.18);
+    if(m < mean*0.35 && v < 8) cornerBlock = Math.max(cornerBlock, 1 - m/mean);
+  }
   return {
+    vline, cornerBlock,
     mean, hi: hi/L.length, lo: lo/L.length, region, sd, horizon: findHorizon(L, w, h),
     warm: warm/(w*h), sunMean, sunX, sunY,
     vdens: vN/inner, keystone: (mL - mR)*180/Math.PI,
@@ -398,7 +416,7 @@ async function analyze(src, W, H, live = false){
     const sky = st.region(0, 0, 1, top), ground = st.region(0, Math.min(0.97, hz.y + 0.06), 1, Math.max(0.03, 1 - hz.y - 0.06));
     if(sky < ground + 6) hz = null; else hz.skySd = st.sd(0, 0, 1, top);
   }
-  return {...st, W, H, horizon: hz, person, sensor: live ? S.sensor : null, shake: live ? S.shake : null};
+  return {...st, W, H, horizon: hz, person, sensor: live ? S.sensor : null, shake: live ? S.shake : null, pitch: live ? S.pitch : null};
 }
 
 /* ---------- pose matching ---------- */
@@ -467,11 +485,12 @@ function buildFeatures(F){
     vdens: F.vdens, keystone: F.keystone, sym_score: F.symScore, sym_shift: F.symShift, sym_c: 0.5 + F.symShift, top_edge: F.topEdge,
     low_edge: F.lowEdge, low_sd: F.lowSd, center_sharp: F.centerSharp, border_sharp: F.borderSharp, sharp_x: F.sharpX, sharp_y: F.sharpY, sharp_tx, sharp_ty, spread: F.spread,
     has_shake: F.shake != null, shake: F.shake ?? -1,
+    has_pitch: F.pitch != null, pitch: F.pitch == null ? 0 : Math.round(F.pitch), corner_block: F.cornerBlock || 0,
     has_tilt: tilt != null, tilt: tilt ?? 0, tilt_abs: tilt == null ? 0 : Math.round(Math.abs(tilt)*10)/10, tilt_src: src,
     has_hz: !!hz, hz_y: hz ? hz.y : -1, hz_conf: hz ? hz.conf : 0, sky_sd: hz ? (hz.skySd || 0) : 0, hz_t: hz && (hz.skySd || 0) > 16 ? 2/3 : 1/3,
     has_person: !!P, p_cx: 0.5, p_cy: 0.5, pos_t: 0.5, pos_d: 0, head_top: -1, full: false, ankle_y: -1, knee_y: -1, eye_y: -1, elbow_y: -1,
     square: false, height_ratio: -1, neck_y: -1, sitting: false, thigh_short: false, face_w: -1, face_x: 0.5, face_y: 0.5, face_rect: null, face_dark: false,
-    pose_on: false, pose_score: -1, pose_hint: '', pose_short: '', pose_pt: null,
+    pose_on: false, pose_score: -1, pose_hint: '', pose_short: '', pose_pt: null, face_sd: -1, head_pole: 0,
   };
   if(P){
     const t = P.cx < 0.5 ? 1/3 : 2/3, [fx, fy, fw, fh] = P.face, face = F.region(fx/F.W, fy/F.H, fw/F.W, fh/F.H);
@@ -479,6 +498,8 @@ function buildFeatures(F){
       p_cx: P.cx, p_cy: P.cy, pos_t: t, pos_d: t - P.cx, head_top: P.headTop, full: P.full, ankle_y: P.ankleY ?? -1, knee_y: P.kneeY ?? -1,
       eye_y: P.eyeY ?? -1, elbow_y: P.elbowY ?? -1, square: P.square, height_ratio: P.heightRatio, neck_y: P.neckY, sitting: P.sitting, thigh_short: P.thighShort,
       face_w: P.faceW, face_x: P.faceC[0], face_y: P.faceC[1], face_rect: P.face, face_dark: F.mean > 85 && face < F.mean*0.62,
+      face_sd: Math.round(F.sd(fx/F.W, fy/F.H, fw/F.W, fh/F.H)),
+      head_pole: P.headTop > 0.06 ? Math.round(F.vline(P.faceC[0] - P.faceW*0.3, Math.max(0, P.headTop - 0.14), P.faceW*0.6, Math.min(0.14, P.headTop)) * 100) / 100 : 0,
     });
     P.match = null;
     if(S.pose !== 'none' && kind === 'portrait'){
@@ -612,6 +633,9 @@ function drawOverlay(ctx, F, E, shown){
       const e1 = Math.PI*0.8, e2 = Math.PI*0.88;
       arrow(ctx, ax + R*Math.cos(e1), ay + R*Math.sin(e1), ax + R*Math.cos(e2), ay + R*Math.sin(e2), lw, C.target);
       pills.push(['一起转身 45°', ax, ay + R + lw*3, C.target, 'center']);
+    } else if(d.type === 'zone'){
+      ctx.strokeStyle = C.warn; ctx.lineWidth = lw*1.8; ctx.setLineDash([lw*3, lw*2]); ctx.strokeRect(d.x*W, d.y*H, d.w*W, d.h*H); ctx.setLineDash([]);
+      pills.push([d.label || '注意这里', d.x*W + d.w*W + lw*3, d.y*H, C.warn, 'left']);
     } else if(d.type === 'arrow2'){
       const x = d.x*W, y = d.y*H, tx = d.tx*W, ty = d.ty*H, R = Math.min(W, H)*0.06;
       ctx.strokeStyle = C.target; ctx.lineWidth = lw*1.8; ctx.beginPath(); ctx.arc(tx, ty, R, 0, Math.PI*2); ctx.stroke();
@@ -695,6 +719,11 @@ const PIC = {
   sitlevel: `<circle cx="42" cy="22" r="5" stroke="${PW}"/><path d="M42 27 V40 H54 V54 M42 40 L36 54" stroke="${PW}"/><rect x="8" y="16" width="6" height="14" rx="2" stroke="${PO}"/><path d="M14 22 H36" stroke="${PT}" stroke-dasharray="3 3"/><path d="M11 40 V52" stroke="${PO}"/><path d="M7 36 L11 32 L15 36" stroke="${PO}" transform="rotate(180 11 34)"/>`,
   knees: `<circle cx="20" cy="14" r="5" stroke="${PW}"/><path d="M20 19 V36 L44 44 L56 58" stroke="${PW}"/><path d="M20 36 L40 54" stroke="${PT}" stroke-dasharray="3 3"/><path d="M48 30 A16 16 0 0 1 56 44" stroke="${PO}"/>`,
   oval: `<ellipse cx="32" cy="28" rx="16" ry="21" stroke="${PT}" stroke-dasharray="4 3"/><circle cx="32" cy="28" r="9" stroke="${PW}"/><path d="M14 60 Q32 46 50 60" stroke="${PW}"/>`,
+  finger: `<rect x="10" y="6" width="44" height="52" rx="5" stroke="${PG}"/><path d="M4 40 Q10 28 22 30 Q28 34 24 44 Q18 56 6 54" stroke="${PR}"/><circle cx="40" cy="20" r="6" stroke="${PT}"/>`,
+  lowAngle: `<circle cx="44" cy="14" r="6" stroke="${PW}"/><path d="M44 20 V40 M36 26 H52" stroke="${PW}"/><rect x="10" y="40" width="7" height="14" rx="2" stroke="${PR}" transform="rotate(-25 13 47)"/><path d="M18 40 L38 18" stroke="${PR}" stroke-dasharray="3 3"/><rect x="10" y="10" width="7" height="14" rx="2" stroke="${PT}"/><path d="M18 17 H36" stroke="${PT}"/>`,
+  closeFace: `<ellipse cx="22" cy="30" rx="13" ry="17" stroke="${PR}"/><circle cx="22" cy="32" r="5" stroke="${PR}"/><ellipse cx="46" cy="30" rx="9" ry="12" stroke="${PT}"/><circle cx="46" cy="31" r="2.5" stroke="${PT}"/><path d="M14 56 H54" stroke="${PO}"/><path d="M48 51 L54 56 L48 61" stroke="${PO}"/>`,
+  pole: `<path d="M32 4 V26" stroke="${PR}"/><path d="M26 10 H38" stroke="${PR}"/><circle cx="32" cy="34" r="7" stroke="${PW}"/><path d="M18 60 Q32 40 46 60" stroke="${PW}"/><path d="M48 26 H60" stroke="${PO}"/><path d="M55 21 L60 26 L55 31" stroke="${PO}"/>`,
+  dapple: `<circle cx="32" cy="34" r="16" stroke="${PW}"/><circle cx="26" cy="28" r="4" fill="${PO}" stroke="${PO}"/><circle cx="38" cy="38" r="3" fill="${PO}" stroke="${PO}"/><circle cx="30" cy="42" r="2" fill="${PO}" stroke="${PO}"/><path d="M8 8 Q20 4 24 14 M40 4 Q50 10 56 6" stroke="${PT}"/>`,
   idea: `<path d="M32 8 A15 15 0 0 0 23 35 V42 H41 V35 A15 15 0 0 0 32 8 Z" stroke="${PT}"/><path d="M25 49 H39 M27 55 H37" stroke="${PT}"/><path d="M32 18 V26" stroke="${PO}"/>`,
   selfieAngle: `<circle cx="22" cy="40" r="7" stroke="${PW}"/><path d="M12 60 Q22 50 32 60" stroke="${PW}"/><rect x="40" y="8" width="8" height="16" rx="2" stroke="${PO}" transform="rotate(25 44 16)"/><path d="M40 22 L26 34" stroke="${PT}" stroke-dasharray="3 3"/>`,
 };
@@ -741,6 +770,8 @@ function onMotion(e){
   const a = e.accelerationIncludingGravity; if(!a || a.x == null || a.y == null) return;
   const ang = Math.atan2(-a.x, a.y)*180/Math.PI, dev = ang - Math.round(ang/90)*90;
   S.sensor = S.sensor == null ? dev : S.sensor*0.8 + dev*0.2;
+  // 后置镜头俯仰角：正数=镜头朝上（仰拍），负数=朝下（俯拍）
+  if(a.z != null){ const pt = -Math.atan2(a.z, Math.hypot(a.x, a.y))*180/Math.PI; S.pitch = S.pitch == null ? pt : S.pitch*0.8 + pt*0.2; }
 }
 function debounce(rules){
   const now = performance.now(), seen = new Set();
@@ -794,7 +825,7 @@ async function startLive(){
   }
 }
 function stopLive(){
-  S.live = false; window.removeEventListener('devicemotion', onMotion); S.sensor = null; S.shake = null;
+  S.live = false; window.removeEventListener('devicemotion', onMotion); S.sensor = null; S.shake = null; S.pitch = null;
   closeCamera(); S.lastF = null;
   $('#btnLive').setAttribute('aria-pressed', 'false'); renderStill();
 }
