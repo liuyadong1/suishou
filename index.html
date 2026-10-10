@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0D1112">
+<style>*,*::before,*::after{box-sizing:border-box}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);height:100%}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>随手大师</title>
+<style>
+/* Layout: one-screen camera — header, viewfinder fills the middle, hint cards float on the frame, controls at the thumb. Single dark look by choice (viewfinder). */
+:root{
+  --bg:#0D1112; --panel:#171D1F; --line:#2B3437; --fg:#EEF2F1; --muted:#95A29F; --black:#050707;
+  --target:#4FD6B8; --now:#F3A443; --warn:#F07A6A; --ok:#7BD88F;
+  --glass:rgba(8,12,13,.78);
+  --display:"Barlow Condensed","DIN Alternate","Arial Narrow",sans-serif;
+  --body:"PingFang SC","MiSans","HarmonyOS Sans SC","Noto Sans SC","Microsoft YaHei",system-ui,sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:14px;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
+#app{height:100%;display:flex;flex-direction:column;max-width:560px;margin:0 auto}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px}
+.brand{font-weight:700;font-size:17px;letter-spacing:.04em;white-space:nowrap}
+.brand small{color:var(--muted);font-weight:400;font-size:12px;letter-spacing:0;margin-left:6px}
+.seg{display:flex;background:var(--panel);border-radius:999px;padding:3px}
+.seg button{border:0;background:transparent;color:var(--muted);font-size:13px;padding:6px 12px;border-radius:999px}
+.seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg);font-weight:600}
+.stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:var(--black);overflow:hidden}
+#view{max-width:100%;max-height:100%;display:block}
+.score{position:absolute;top:12px;left:12px;background:var(--glass);border-radius:12px;padding:4px 12px 6px;display:flex;align-items:baseline;gap:6px}
+.score b{font-family:var(--display);font-size:32px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1}
+.score span{font-size:12px;color:var(--muted)}
+.tag{position:absolute;top:14px;right:12px;font-size:12px;background:var(--glass);padding:5px 10px;border-radius:999px;color:var(--muted)}
+.hints{position:absolute;left:12px;right:12px;bottom:12px;display:grid;gap:8px}
+.hint{background:var(--glass);border-radius:12px;padding:10px 12px;display:grid;grid-template-columns:auto 1fr;column-gap:10px;row-gap:2px;align-items:start}
+.hint i{grid-row:span 2;width:10px;height:10px;border-radius:50%;margin-top:6px;background:var(--now)}
+.hint.ok i{background:var(--ok)}
+.hint strong{font-size:15px;font-weight:600}
+.hint p{margin:0;font-size:13px;color:var(--muted);line-height:1.5}
+.posebar{display:flex;align-items:center;gap:8px;padding:10px 16px 0;overflow-x:auto;scrollbar-width:none}
+.posebar::-webkit-scrollbar{display:none}
+.posebar label{flex:0 0 auto;font-size:12px;color:var(--muted)}
+.chip{flex:0 0 auto;display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:transparent;border-radius:999px;padding:4px 12px 4px 6px;font-size:13px;color:var(--muted)}
+.chip svg{width:18px;height:28px}
+.chip[aria-pressed="true"]{border-color:var(--target);color:var(--fg)}
+.chip[aria-pressed="true"] svg{color:var(--target)}
+.status{font-size:12px;color:var(--muted);text-align:center;padding:6px 16px 0;min-height:18px}
+.controls{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding-block:10px calc(16px + env(safe-area-inset-bottom,0px));padding-inline:24px}
+.side{justify-self:center;display:grid;justify-items:center;gap:4px;border:0;background:transparent;color:var(--muted);font-size:12px}
+.side span.ic{width:46px;height:46px;border-radius:50%;background:var(--panel);display:grid;place-items:center}
+.side svg{width:22px;height:22px;stroke:var(--fg);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.side[aria-pressed="true"] span.ic{background:var(--target)}
+.side[aria-pressed="true"] svg{stroke:var(--bg)}
+.shutter{width:74px;height:74px;border-radius:50%;border:4px solid var(--fg);background:transparent;padding:4px}
+.shutter span{display:block;width:100%;height:100%;border-radius:50%;background:var(--fg);transition:transform .12s}
+.shutter:active span{transform:scale(.9)}
+.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 64px);transform:translateX(-50%);width:min(92vw,480px);background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.6;z-index:20}
+.sheet{position:fixed;inset:0;background:var(--bg);overflow-y:auto;z-index:10;padding-block:calc(env(safe-area-inset-top,0px) + 12px) calc(28px + env(safe-area-inset-bottom,0px));padding-inline:16px}
+.sheet-in{max-width:560px;margin:0 auto;display:grid;gap:16px}
+.sheet-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.sheet h2{margin:0;font-size:18px}
+.sheet h3{margin:4px 0 0;font-size:15px}
+.sheet p.note{margin:0;color:var(--muted);font-size:13px;line-height:1.6}
+.sheet canvas,.sheet img{width:100%;height:auto;border-radius:12px;display:block}
+.res-score{display:flex;align-items:baseline;gap:8px}
+.res-score b{font-family:var(--display);font-size:56px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
+.res-score span{color:var(--muted)}
+.list{display:grid;gap:8px}
+.list .hint{background:var(--panel)}
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.compare figure{margin:0;display:grid;gap:6px}
+.compare figcaption{font-size:12px;color:var(--muted);text-align:center}
+.compare figcaption b{font-family:var(--display);font-size:18px;color:var(--fg);margin-left:4px}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+.btn{background:var(--fg);color:var(--bg);border:0;border-radius:999px;padding:11px 18px;font-weight:600}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line);font-weight:500}
+@media (prefers-reduced-motion:reduce){.shutter span{transition:none}}
+</style>
+
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="brand">随手大师<small>拍照教练 v0.1</small></div>
+    <div class="seg" role="group" aria-label="拍摄模式">
+      <button id="m-auto" data-mode="auto" aria-pressed="true">自动</button>
+      <button id="m-scene" data-mode="scene" aria-pressed="false">风景</button>
+      <button id="m-portrait" data-mode="portrait" aria-pressed="false">人像</button>
+    </div>
+  </header>
+
+  <main class="stage" id="stage">
+    <canvas id="view" width="900" height="1200" aria-label="取景画面与构图提示"></canvas>
+    <div class="score"><b id="scoreVal">--</b><span>构图分</span></div>
+    <div class="tag" id="tag">示例画面</div>
+    <div class="hints" id="hints" aria-live="polite"></div>
+  </main>
+
+  <div class="posebar" id="posebar"><label>姿势模板</label></div>
+  <div class="status" id="status">姿势识别加载中…</div>
+
+  <footer class="controls">
+    <button class="side" id="btnAlbum" aria-label="从相册选择照片"><span class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg></span>相册</button>
+    <button class="shutter" id="btnShutter" aria-label="拍照"><span></span></button>
+    <button class="side" id="btnLive" aria-pressed="false" aria-label="实时取景"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2l2-2h6l2 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg></span>实时取景</button>
+  </footer>
+
+  <input type="file" id="fileCam" accept="image/*" capture="environment" hidden>
+  <input type="file" id="fileAlbum" accept="image/*" hidden>
+</div>
+
+<section class="sheet" id="sheet" hidden>
+  <div class="sheet-in">
+    <div class="sheet-top"><h2>拍照点评</h2><button class="btn ghost" id="closeSheet">返回取景</button></div>
+    <div id="resBody" class="sheet-in"></div>
+  </div>
+</section>
+<div class="toast" id="toast" hidden></div>
+
+<script type="module">
+const $ = s => document.querySelector(s);
+const view = $('#view'), vctx = view.getContext('2d');
+const css = getComputedStyle(document.documentElement);
+const C = { target: css.getPropertyValue('--target').trim(), now: css.getPropertyValue('--now').trim(), warn: css.getPropertyValue('--warn').trim() };
+const FONT = '"PingFang SC","MiSans","Noto Sans SC",sans-serif';
+const S = { mode:'auto', pose:'none', live:false, human:null, video:null, stream:null, sensor:null, busy:false, lastRun:0, lastF:null, lastE:null, shown:[], active:new Map(), still:null, isSample:true, prev:null, sheetOpen:false, scoreS:null };
+const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
+const mid = (a,b) => [(a[0]+b[0])/2, (a[1]+b[1])/2];
+const dist = (a,b) => Math.hypot(a[0]-b[0], a[1]-b[1]);
+
+/* ---------- pose templates (body units: hip centre = 0,0; torso length = 1; x = image left/right) ---------- */
+const T0 = {nose:[0,-1.45], ls:[-0.4,-1], rs:[0.4,-1], le:[-0.47,-0.45], re:[0.47,-0.45], lw:[-0.5,0.05], rw:[0.5,0.05], lh:[-0.27,0], rh:[0.27,0], lk:[-0.25,1.02], rk:[0.25,1.02], la:[-0.26,2], ra:[0.26,2]};
+const POSES = [
+  {id:'relax', name:'稍息站姿', tip:'一只脚在前，重心放在后脚', d:{rk:[0.1,1.0], ra:[0.02,1.97], lk:[-0.22,1.03], la:[-0.3,2], re:[0.52,-0.42], rw:[0.36,0.02]}},
+  {id:'hip', name:'单手叉腰', tip:'手肘向外打开，显得腰细', d:{le:[-0.8,-0.52], lw:[-0.32,-0.06], rk:[0.22,1.0], ra:[0.32,1.95]}},
+  {id:'hair', name:'抬手扶发', tip:'手轻碰头发，肩膀放松', d:{re:[0.66,-1.45], rw:[0.2,-1.62], rk:[0.08,1.0], ra:[-0.02,1.98]}},
+  {id:'pocket', name:'双手插兜', tip:'双脚微微分开，下巴微收', d:{le:[-0.58,-0.4], re:[0.58,-0.4], lw:[-0.31,0.02], rw:[0.31,0.02], lk:[-0.24,1.02], rk:[0.24,1.02], la:[-0.32,2], ra:[0.32,2]}},
+].map(p => ({...p, k:{...T0, ...p.d}}));
+const BONES = [['ls','rs'],['ls','le'],['le','lw'],['rs','re'],['re','rw'],['ls','lh'],['rs','rh'],['lh','rh'],['lh','lk'],['lk','la'],['rh','rk'],['rk','ra']];
+const SEGS = [['ls','le','画面左侧的手臂'],['le','lw','画面左侧的手'],['rs','re','画面右侧的手臂'],['re','rw','画面右侧的手'],['lh','lk','画面左侧的腿'],['lk','la','画面左侧的脚'],['rh','rk','画面右侧的腿'],['rk','ra','画面右侧的脚']];
+
+function poseSVG(k){
+  const pt = n => `${k[n][0].toFixed(2)},${k[n][1].toFixed(2)}`;
+  const lines = BONES.map(([a,b]) => `M${pt(a)}L${pt(b)}`).join('');
+  return `<svg viewBox="-1 -1.9 2 4.1" aria-hidden="true"><path d="${lines}" stroke="currentColor" stroke-width="0.13" fill="none" stroke-linecap="round"/><circle cx="${k.nose[0]}" cy="${k.nose[1]}" r="0.26" fill="none" stroke="currentColor" stroke-width="0.13"/></svg>`;
+}
+function buildPoseBar(){
+  const bar = $('#posebar');
+  const mk = (id, name, svg) => { const b = document.createElement('button'); b.className = 'chip'; b.id = 'pose-' + id; b.dataset.pose = id; b.setAttribute('aria-pressed', id === S.pose ? 'true' : 'false'); b.innerHTML = svg + name; bar.appendChild(b); };
+  mk('none', '不用模板', '');
+  POSES.forEach(p => mk(p.id, p.name, poseSVG(p.k)));
+  bar.addEventListener('click', e => { const b = e.target.closest('.chip'); if(!b) return; S.pose = b.dataset.pose; bar.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); S.active.clear(); if(S.pose !== 'none' && S.mode === 'scene') setMode('auto'); if(!S.live) renderStill(); });
+}
+
+/* ---------- image analysis ---------- */
+const sc = document.createElement('canvas'); const sctx = sc.getContext('2d', {willReadFrequently:true});
+function imageStats(src, W, H){
+  const w = 160, h = Math.max(40, Math.round(160 * H / W));
+  sc.width = w; sc.height = h; sctx.drawImage(src, 0, 0, w, h);
+  const d = sctx.getImageData(0, 0, w, h).data; const L = new Float32Array(w * h);
+  let sum = 0, hi = 0, lo = 0;
+  for(let i = 0, j = 0; i < L.length; i++, j += 4){ const v = 0.299*d[j] + 0.587*d[j+1] + 0.114*d[j+2]; L[i] = v; sum += v; if(v > 248) hi++; if(v < 10) lo++; }
+  const mean = sum / L.length;
+  const box = (x, y, rw, rh) => { const x0 = clamp(Math.floor(x*w), 0, w-1), y0 = clamp(Math.floor(y*h), 0, h-1); const x1 = clamp(Math.ceil((x+rw)*w), x0+1, w), y1 = clamp(Math.ceil((y+rh)*h), y0+1, h); return [x0,y0,x1,y1]; };
+  const region = (x, y, rw, rh) => { const [x0,y0,x1,y1] = box(x,y,rw,rh); let s = 0, n = 0; for(let yy = y0; yy < y1; yy++) for(let xx = x0; xx < x1; xx++){ s += L[yy*w+xx]; n++; } return n ? s/n : mean; };
+  const sd = (x, y, rw, rh) => { const m = region(x,y,rw,rh); const [x0,y0,x1,y1] = box(x,y,rw,rh); let s = 0, n = 0; for(let yy = y0; yy < y1; yy++) for(let xx = x0; xx < x1; xx++){ s += (L[yy*w+xx]-m)**2; n++; } return n ? Math.sqrt(s/n) : 0; };
+  return {mean, hi: hi/L.length, lo: lo/L.length, region, sd, horizon: findHorizon(L, w, h)};
+}
+function lineFit(p){ const n = p.length; let sx=0, sy=0, sxx=0, sxy=0; for(const [x,y] of p){ sx+=x; sy+=y; sxx+=x*x; sxy+=x*y; } const den = n*sxx - sx*sx || 1; const a = (n*sxy - sx*sy) / den; return {a, b: (sy - a*sx) / n}; }
+function findHorizon(L, w, h){
+  const n = 8, pts = [], y0 = Math.max(3, Math.floor(h*0.12)), y1 = Math.min(h-3, Math.floor(h*0.88));
+  for(let s = 0; s < n; s++){
+    const xa = Math.floor(s*w/n), xb = Math.floor((s+1)*w/n), R = new Float32Array(h);
+    for(let y = 0; y < h; y++){ let t = 0; for(let x = xa; x < xb; x++) t += L[y*w+x]; R[y] = t / (xb-xa); }
+    let best = -1, by = 0;
+    for(let y = y0; y < y1; y++){ const g = (R[y-3]+R[y-2]+R[y-1])/3 - (R[y+1]+R[y+2]+R[y+3])/3; if(g > best){ best = g; by = y; } }
+    if(best > 14) pts.push([(xa+xb)/2, by]);
+  }
+  if(pts.length < 5) return null;
+  let f = lineFit(pts);
+  const kept = pts.filter(p => Math.abs(p[1] - (f.a*p[0] + f.b)) < h*0.05);
+  if(kept.length < 5) return null;
+  f = lineFit(kept);
+  const res = Math.sqrt(kept.reduce((s,p) => s + (p[1] - (f.a*p[0] + f.b))**2, 0) / kept.length) / h;
+  const angle = Math.atan(f.a) * 180 / Math.PI;
+  if(Math.abs(angle) > 12 || res > 0.02) return null;
+  return {y: (f.a*w/2 + f.b)/h, angle, aN: f.a*w/h, bN: f.b/h, conf: kept.length/n};
+}
+
+function bodyFrom(res, W, H){
+  const b = res && res.body && res.body[0];
+  if(!b || b.score < 0.3) return null;
+  const k = {};
+  for(const p of b.keypoints){ if(p.score >= 0.3) k[p.part] = [p.positionRaw[0]*W, p.positionRaw[1]*H]; }
+  if(!k.leftShoulder || !k.rightShoulder) return null;
+  const swap = k.leftShoulder[0] > k.rightShoulder[0];
+  const g = {nose: k.nose};
+  for(const [a, n] of [['s','Shoulder'],['e','Elbow'],['w','Wrist'],['h','Hip'],['k','Knee'],['a','Ankle']]){
+    g['l'+a] = k[(swap ? 'right' : 'left') + n]; g['r'+a] = k[(swap ? 'left' : 'right') + n];
+  }
+  const sm = mid(g.ls, g.rs), hm = (g.lh && g.rh) ? mid(g.lh, g.rh) : null, sw = dist(g.ls, g.rs);
+  let T, origin;
+  if(hm){ T = dist(sm, hm); origin = hm; } else { T = sw / 0.8; origin = [sm[0], sm[1] + T]; }
+  if(T < 8) return null;
+  const ankles = [g.la, g.ra].filter(Boolean), knees = [g.lk, g.rk].filter(Boolean);
+  const fc = g.nose || [sm[0], sm[1] - T*0.45], fr = Math.max(sw*0.3, 6);
+  return {
+    g, T, origin,
+    cx: (hm ? (sm[0]+hm[0])/2 : sm[0]) / W, cy: sm[1] / H,
+    headTop: g.nose ? (g.nose[1] - 0.6*Math.abs(sm[1] - g.nose[1])) / H : (sm[1] - T*0.75) / H,
+    ankleY: ankles.length ? Math.max(...ankles.map(p => p[1])) / H : null,
+    kneeY: knees.length ? Math.max(...knees.map(p => p[1])) / H : null,
+    full: ankles.length > 0,
+    face: [fc[0]-fr, fc[1]-fr*1.1, fr*2, fr*2.2],
+  };
+}
+
+async function analyze(src, W, H, live = false){
+  const st = imageStats(src, W, H);
+  let person = null;
+  if(S.human && S.mode !== 'scene'){ try { person = bodyFrom(await S.human.detect(src), W, H); } catch(e){ person = null; } }
+  let hz = st.horizon;
+  if(hz){
+    const top = Math.max(0.03, hz.y - 0.06);
+    const sky = st.region(0, 0, 1, top), ground = st.region(0, Math.min(0.97, hz.y + 0.06), 1, Math.max(0.03, 1 - hz.y - 0.06));
+    if(sky < ground + 6) hz = null; else hz.skySd = st.sd(0, 0, 1, top);
+  }
+  return {W, H, mean: st.mean, hi: st.hi, region: st.region, horizon: hz, person, sensor: live ? S.sensor : null};
+}
+
+/* ---------- pose matching ---------- */
+function toBody(P){ const o = {}; for(const k in P.g){ const p = P.g[k]; if(p) o[k] = [(p[0]-P.origin[0])/P.T, (p[1]-P.origin[1])/P.T]; } return o; }
+function mirror(t){ const m = {}; for(const k in t){ const v = t[k]; const kk = k[0] === 'l' ? 'r'+k.slice(1) : k[0] === 'r' ? 'l'+k.slice(1) : k; m[kk] = [-v[0], v[1]]; } return m; }
+function compare(u, t){
+  let s = 0, n = 0, worst = null;
+  for(const [a, b, name] of SEGS){
+    if(!u[a] || !u[b]) continue;
+    const du = Math.atan2(u[b][1]-u[a][1], u[b][0]-u[a][0]), dt = Math.atan2(t[b][1]-t[a][1], t[b][0]-t[a][0]);
+    let dd = Math.abs(du - dt); if(dd > Math.PI) dd = 2*Math.PI - dd;
+    const deg = dd * 180 / Math.PI; s += 1 - Math.min(deg, 90)/90; n++;
+    if(!worst || deg > worst.deg) worst = {deg, b, name};
+  }
+  return n >= 3 ? {score: Math.round(100*s/n), worst} : null;
+}
+function limbHint(w, u, t, pose){
+  if(!w || w.deg < 20) return pose.tip;
+  const end = u[w.b], te = t[w.b];
+  if(/[ew]$/.test(w.b)){
+    const dy = te[1] - end[1];
+    if(dy < -0.15) return w.name + '抬高一点';
+    if(dy > 0.15) return w.name + '放低一点';
+    return w.name + (Math.abs(te[0]) > Math.abs(end[0]) ? '向外打开一点' : '往身体收一点');
+  }
+  return w.name + (Math.abs(te[0]) > Math.abs(end[0]) ? '往外迈一点' : '往里收一点');
+}
+function matchPose(P){
+  const pose = POSES.find(p => p.id === S.pose); if(!pose) return null;
+  const u = toBody(P), Bm = mirror(pose.k), A = compare(u, pose.k), B = compare(u, Bm);
+  if(!A && !B) return null;
+  const useB = B && (!A || B.score > A.score), r = useB ? B : A, t = useB ? Bm : pose.k;
+  return {score: r.score, t, hint: limbHint(r.worst, u, t, pose)};
+}
+
+/* ---------- rules ---------- */
+function evaluate(F){
+  const out = [], add = (id, pri, pen, title, sub, draw) => out.push({id, pri, pen, title, sub, draw});
+  const P = S.mode === 'scene' ? null : F.person;
+  const portrait = !!P, scene = !portrait && S.mode !== 'portrait';
+  let theta = null, src = '';
+  if(F.sensor != null){ theta = F.sensor; src = 'sensor'; }
+  else if(F.horizon && (scene || F.horizon.conf > 0.8)){ theta = -F.horizon.angle; src = 'horizon'; }
+  if(theta != null && Math.abs(theta) >= 1.5){
+    add('tilt', 1, Math.min(25, Math.round(Math.abs(theta)*4)), `画面歪了 ${Math.abs(theta).toFixed(1)}°`, theta > 0 ? '手机右侧抬高一点，摆正再拍' : '手机左侧抬高一点，摆正再拍', {type:'tilt', theta, src});
+  }
+  if(scene && F.horizon){
+    const y = F.horizon.y;
+    if(y > 0.4 && y < 0.6){
+      const t = (F.horizon.skySd || 0) > 16 ? 2/3 : 1/3;
+      add('horizon', 2, 12, '地平线压在画面正中', t > y ? '手机往上仰一点，地平线落到下三分线，多留天空' : '手机往下压一点，地平线落到上三分线，多拍地面', {type:'hline', y, t});
+    }
+  }
+  if(portrait){
+    const t = P.cx < 0.5 ? 1/3 : 2/3, d = t - P.cx;
+    if(Math.abs(P.cx - 0.5) > 0.05 && Math.abs(d) > 0.06) add('pos', 2, 15, d > 0 ? '手机向左平移一点' : '手机向右平移一点', `让人物落在${t < 0.5 ? '左' : '右'}侧三分线上`, {type:'move', x:P.cx, y:P.cy, tx:t});
+    if(P.headTop < 0.02) add('head', 3, 12, '头顶快被切到了', '手机稍微往上抬，头顶留一点空', {type:'band'});
+    else if(P.headTop > 0.28 && !(P.full && P.ankleY > 0.9)) add('headroom', 3, 10, '头顶空太多', '手机往下压一点，或者走近一步', {type:'headroom', y:P.headTop});
+    if(!P.full && P.kneeY != null && P.kneeY > 0.82) add('knee', 3, 12, '画面在膝盖附近截断', '要么拍全脚，要么截到大腿中部', {type:'cut', y:P.kneeY});
+    if(P.full && P.ankleY > 0.97) add('feet', 3, 10, '脚快被切掉了', '手机往上抬一点，脚下留出空间', {type:'cut', y:P.ankleY});
+    else if(P.full && P.ankleY > 0.78) add('legs', 7, 0, '显腿长小技巧', '手机降到腰部高度、稍微仰拍，脚踩在画面底边附近', null);
+    const [fx, fy, fw, fh] = P.face, face = F.region(fx/F.W, fy/F.H, fw/F.W, fh/F.H);
+    if(F.mean > 85 && face < F.mean * 0.62) add('backlight', 2, 15, '人物脸偏暗（逆光）', '两人一起转身 45° 变侧光，或点一下脸部测光', {type:'box', r:P.face});
+    if(S.pose !== 'none'){
+      const m = matchPose(P); P.match = m;
+      if(m){ if(m.score < 75) add('pose', 5, Math.round((75 - m.score)/3), `姿势相似度 ${m.score}%`, m.hint, null); else add('poseok', 8, 0, `姿势到位 ${m.score}%`, '可以拍了', null); }
+    }
+  } else if(S.mode === 'portrait' && S.human){
+    add('noperson', 6, 0, '还没找到人物', '让人物完整进入画面，至少露出肩膀', null);
+  }
+  if(F.mean < 55) add('dark', 4, 10, '画面偏暗', '换到更亮的位置，或拿稳手机开夜景模式', null);
+  if(F.hi > 0.12) add('bright', 4, 10, '亮部过曝', '点一下画面最亮的地方，降低曝光', null);
+  out.sort((a, b) => a.pri - b.pri);
+  return {rules: out, score: Math.max(30, 100 - out.reduce((s, r) => s + r.pen, 0)), portrait, scene};
+}
+
+/* ---------- drawing ---------- */
+function arrow(ctx, x1, y1, x2, y2, lw, color){
+  const a = Math.atan2(y2-y1, x2-x1), hl = lw*4;
+  ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = lw*1.4;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2 - Math.cos(a)*hl*0.6, y2 - Math.sin(a)*hl*0.6); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x2 - hl*Math.cos(a-0.45), y2 - hl*Math.sin(a-0.45)); ctx.lineTo(x2 - hl*Math.cos(a+0.45), y2 - hl*Math.sin(a+0.45)); ctx.closePath(); ctx.fill();
+}
+function drawOverlay(ctx, F, E, shown){
+  const W = F.W, H = F.H, lw = Math.max(2, Math.round(Math.min(W, H)/220));
+  ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(255,255,255,.38)'; ctx.lineWidth = Math.max(1, lw/2);
+  ctx.beginPath(); for(const f of [1/3, 2/3]){ ctx.moveTo(W*f, 0); ctx.lineTo(W*f, H); ctx.moveTo(0, H*f); ctx.lineTo(W, H*f); } ctx.stroke();
+  const P = E.portrait ? F.person : null;
+  if(P){
+    const g = P.g;
+    ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = lw;
+    ctx.beginPath(); for(const [a, b] of BONES){ if(g[a] && g[b]){ ctx.moveTo(g[a][0], g[a][1]); ctx.lineTo(g[b][0], g[b][1]); } } ctx.stroke();
+    const pose = POSES.find(p => p.id === S.pose);
+    if(pose){
+      const t = P.match ? P.match.t : pose.k, at = n => [P.origin[0] + t[n][0]*P.T, P.origin[1] + t[n][1]*P.T];
+      ctx.setLineDash([lw*3, lw*2.6]); ctx.strokeStyle = C.target; ctx.lineWidth = lw*1.6;
+      ctx.beginPath(); for(const [a, b] of BONES){ const p = at(a), q = at(b); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); }
+      const n = at('nose'); ctx.moveTo(n[0] + P.T*0.27, n[1]); ctx.arc(n[0], n[1], P.T*0.27, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+    }
+  }
+  for(const r of shown){
+    const d = r.draw; if(!d) continue;
+    if(d.type === 'tilt'){
+      const cx = W/2, cy = H/2, len = Math.min(W, H)*0.38;
+      if(d.src === 'horizon' && F.horizon){
+        ctx.setLineDash([lw*4, lw*3]); ctx.strokeStyle = C.now; ctx.lineWidth = lw*1.4;
+        ctx.beginPath(); ctx.moveTo(0, F.horizon.bN*H); ctx.lineTo(W, (F.horizon.aN + F.horizon.bN)*H); ctx.stroke(); ctx.setLineDash([]);
+        const y = F.horizon.y*H; ctx.strokeStyle = C.target; ctx.lineWidth = lw*1.4; ctx.beginPath(); ctx.moveTo(cx-len, y); ctx.lineTo(cx+len, y); ctx.stroke();
+      } else {
+        const a = -d.theta*Math.PI/180;
+        ctx.strokeStyle = C.target; ctx.lineWidth = lw*1.4; ctx.beginPath(); ctx.moveTo(cx-len, cy); ctx.lineTo(cx+len, cy); ctx.stroke();
+        ctx.strokeStyle = C.now; ctx.lineWidth = lw*2; ctx.beginPath(); ctx.moveTo(cx - len*Math.cos(a), cy - len*Math.sin(a)); ctx.lineTo(cx + len*Math.cos(a), cy + len*Math.sin(a)); ctx.stroke();
+      }
+    } else if(d.type === 'hline'){
+      ctx.strokeStyle = C.target; ctx.lineWidth = lw*1.6; ctx.beginPath(); ctx.moveTo(0, d.t*H); ctx.lineTo(W, d.t*H); ctx.stroke();
+      arrow(ctx, W*0.82, d.y*H, W*0.82, d.t*H, lw, C.now);
+    } else if(d.type === 'move'){
+      const x = d.x*W, y = d.y*H, tx = d.tx*W, R = lw*9;
+      ctx.strokeStyle = C.target; ctx.lineWidth = lw*1.6; ctx.beginPath(); ctx.arc(tx, y, R, 0, Math.PI*2); ctx.stroke();
+      ctx.fillStyle = C.now; ctx.beginPath(); ctx.arc(x, y, lw*3, 0, Math.PI*2); ctx.fill();
+      arrow(ctx, x, y, tx - Math.sign(tx - x)*R, y, lw, C.now);
+    } else if(d.type === 'band'){
+      ctx.fillStyle = C.warn; ctx.globalAlpha = 0.55; ctx.fillRect(0, 0, W, Math.max(lw*3, H*0.02)); ctx.globalAlpha = 1;
+    } else if(d.type === 'headroom'){
+      ctx.strokeStyle = C.target; ctx.lineWidth = lw*1.4; ctx.beginPath(); ctx.moveTo(W*0.25, H*0.1); ctx.lineTo(W*0.75, H*0.1); ctx.stroke();
+      arrow(ctx, W/2, d.y*H, W/2, H*0.1 + lw*3, lw, C.now);
+    } else if(d.type === 'cut'){
+      ctx.strokeStyle = C.warn; ctx.lineWidth = lw*1.6; ctx.setLineDash([lw*3, lw*2]); ctx.beginPath(); ctx.moveTo(0, d.y*H); ctx.lineTo(W, d.y*H); ctx.stroke(); ctx.setLineDash([]);
+    } else if(d.type === 'box'){
+      ctx.strokeStyle = C.warn; ctx.lineWidth = lw*1.6; ctx.strokeRect(d.r[0], d.r[1], d.r[2], d.r[3]);
+    }
+  }
+  ctx.restore();
+}
+function hintHTML(r){ return `<div class="hint ${r.pen === 0 ? 'ok' : ''}"><i></i><strong>${r.title}</strong><p>${r.sub}</p></div>`; }
+const OK_HINT = '<div class="hint ok"><i></i><strong>构图不错</strong><p>可以按快门了</p></div>';
+function renderHints(rules, score){
+  $('#hints').innerHTML = rules.length ? rules.slice(0, 2).map(hintHTML).join('') : OK_HINT;
+  $('#scoreVal').textContent = score;
+}
+
+/* ---------- still frame on the main stage (sample or last photo) ---------- */
+async function renderStill(){
+  const c = S.still; if(!c) return;
+  const F = await analyze(c, c.width, c.height), E = evaluate(F);
+  view.width = c.width; view.height = c.height; vctx.drawImage(c, 0, 0); drawOverlay(vctx, F, E, E.rules);
+  renderHints(E.rules, E.score);
+  $('#tag').hidden = false; $('#tag').textContent = S.isSample ? '示例画面' : '上一张照片';
+}
+function drawSample(){
+  const W = 900, H = 1200, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d'), hy = H*0.5;
+  g.save(); g.translate(W/2, H/2); g.rotate(4*Math.PI/180); g.translate(-W/2, -H/2);
+  const sky = g.createLinearGradient(0, -300, 0, hy); sky.addColorStop(0, '#5E9BD6'); sky.addColorStop(1, '#D7E8F5');
+  g.fillStyle = sky; g.fillRect(-400, -400, W+800, hy+400);
+  g.fillStyle = 'rgba(255,255,255,.9)';
+  for(const [x, y, r] of [[160,180,60],[230,160,80],[310,190,55],[620,300,50],[690,280,70],[760,305,48]]){ g.beginPath(); g.arc(x, y, r, 0, Math.PI*2); g.fill(); }
+  g.fillStyle = '#FFF4D6'; g.beginPath(); g.arc(700, 140, 44, 0, Math.PI*2); g.fill();
+  g.fillStyle = '#6E8798'; g.beginPath(); g.moveTo(-400, hy); for(let x = -400; x <= W+400; x += 60) g.lineTo(x, hy - 22 - 14*Math.sin(x/90)); g.lineTo(W+400, hy); g.closePath(); g.fill();
+  g.fillStyle = '#356A8A'; g.fillRect(-400, hy, W+800, H*0.16);
+  g.fillStyle = '#4E7A3A'; g.fillRect(-400, hy + H*0.16, W+800, H);
+  g.fillStyle = '#3F6630'; for(let x = -300; x < W+300; x += 46){ g.beginPath(); g.moveTo(x, hy + H*0.16 + 6); g.lineTo(x+18, hy + H*0.16 - 40); g.lineTo(x+36, hy + H*0.16 + 6); g.fill(); }
+  g.restore();
+  return c;
+}
+
+/* ---------- live camera ---------- */
+function onMotion(e){
+  const a = e.accelerationIncludingGravity; if(!a || a.x == null || a.y == null) return;
+  const ang = Math.atan2(-a.x, a.y)*180/Math.PI, dev = ang - Math.round(ang/90)*90;
+  S.sensor = S.sensor == null ? dev : S.sensor*0.8 + dev*0.2;
+}
+function debounce(rules){
+  const now = performance.now(), seen = new Set();
+  for(const r of rules){ seen.add(r.id); const a = S.active.get(r.id); if(a){ a.last = now; a.r = r; } else S.active.set(r.id, {since: now, last: now, r}); }
+  for(const [id, a] of S.active){ if(!seen.has(id) && now - a.last > 800) S.active.delete(id); }
+  return [...S.active.values()].filter(a => now - a.since >= 400).map(a => a.r).sort((x, y) => x.pri - y.pri);
+}
+function loop(){
+  if(!S.live) return;
+  const v = S.video, W = v.videoWidth, H = v.videoHeight;
+  if(W && !S.sheetOpen){
+    if(view.width !== W || view.height !== H){ view.width = W; view.height = H; }
+    vctx.drawImage(v, 0, 0, W, H);
+    if(S.lastF) drawOverlay(vctx, S.lastF, S.lastE, S.shown);
+    if(!S.busy && performance.now() - S.lastRun > 90){
+      S.busy = true; S.lastRun = performance.now();
+      analyze(v, W, H, true).then(F => {
+        const E = evaluate(F); S.lastF = F; S.lastE = E; S.shown = debounce(E.rules);
+        S.scoreS = S.scoreS == null ? E.score : Math.round(S.scoreS*0.7 + E.score*0.3);
+        renderHints(S.shown, S.scoreS);
+      }).catch(() => {}).finally(() => { S.busy = false; });
+    }
+  }
+  requestAnimationFrame(loop);
+}
+async function startLive(){
+  try {
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('no camera api');
+    const st = await navigator.mediaDevices.getUserMedia({video: {facingMode: {ideal: 'environment'}, width: {ideal: 1280}, height: {ideal: 720}}, audio: false});
+    const v = document.createElement('video'); v.playsInline = true; v.muted = true; v.srcObject = st; await v.play();
+    S.stream = st; S.video = v; S.live = true; S.active.clear(); S.scoreS = null;
+    window.addEventListener('devicemotion', onMotion);
+    $('#btnLive').setAttribute('aria-pressed', 'true'); $('#tag').hidden = true;
+    toast('实时取景已开启，按提示调整，提示变少就可以拍了');
+    loop();
+  } catch(e){
+    toast('这个页面暂时不能直接打开摄像头。点中间的快门会调用手机相机，拍完自动点评。');
+  }
+}
+function stopLive(){
+  S.live = false; window.removeEventListener('devicemotion', onMotion); S.sensor = null;
+  if(S.stream) S.stream.getTracks().forEach(t => t.stop());
+  S.stream = null; S.video = null; S.lastF = null;
+  $('#btnLive').setAttribute('aria-pressed', 'false'); renderStill();
+}
+function grabFrame(){ const v = S.video, c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0); return c; }
+
+/* ---------- photo review ---------- */
+function loadImage(file){ return new Promise((res, rej) => { const u = URL.createObjectURL(file), im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = u; }); }
+async function handleFile(file){
+  if(!file) return;
+  try {
+    const im = await loadImage(file), s = Math.min(1, 1600/Math.max(im.naturalWidth, im.naturalHeight));
+    const c = document.createElement('canvas'); c.width = Math.round(im.naturalWidth*s); c.height = Math.round(im.naturalHeight*s);
+    c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+    await showResult(c);
+  } catch(e){ toast('这张图片打不开，换一张试试'); }
+}
+function suggestCrop(c, F, E){
+  const W = c.width, H = c.height, tilt = E.rules.find(r => r.id === 'tilt');
+  const ang = tilt && tilt.draw.src === 'horizon' ? F.horizon.angle : 0, rad = -ang*Math.PI/180;
+  const k = Math.abs(Math.cos(rad)) + Math.abs(Math.sin(rad))*Math.max(W/H, H/W), tr = v => (v - 0.5)*k + 0.5;
+  const z = 0.82, cw = W*z, ch = H*z, P = E.portrait ? F.person : null;
+  let cx = (W - cw)/2, cy = (H - ch)/2, need = ang !== 0;
+  if(P){
+    const t = P.cx < 0.5 ? 1/3 : 2/3;
+    if(Math.abs(P.cx - 0.5) > 0.05 && Math.abs(t - P.cx) > 0.04){ cx = tr(P.cx)*W - t*cw; need = true; }
+    if(P.headTop > 0.22){ cy = tr(P.headTop)*H - 0.1*ch; need = true; }
+  } else if(E.scene && F.horizon && F.horizon.y > 0.4 && F.horizon.y < 0.6){
+    const t = (F.horizon.skySd || 0) > 16 ? 2/3 : 1/3; cy = tr(F.horizon.y)*H - t*ch; need = true;
+  }
+  if(!need) return null;
+  cx = clamp(cx, 0, W - cw); cy = clamp(cy, 0, H - ch);
+  const r = document.createElement('canvas'); r.width = W; r.height = H;
+  const g = r.getContext('2d'); g.translate(W/2, H/2); g.rotate(rad); g.scale(k, k); g.drawImage(c, -W/2, -H/2);
+  const out = document.createElement('canvas'); out.width = Math.round(cw); out.height = Math.round(ch);
+  out.getContext('2d').drawImage(r, cx, cy, cw, ch, 0, 0, out.width, out.height);
+  return out;
+}
+function makeCard(a, b, s1, s2, la, lb){
+  const cw = 1080, pad = 48, gap = 24, col = (cw - pad*2 - gap)/2;
+  const ha = col*a.height/a.width, hb = col*b.height/b.width, ih = Math.max(ha, hb), H = Math.round(pad + 96 + ih + 150);
+  const c = document.createElement('canvas'); c.width = cw; c.height = H; const g = c.getContext('2d');
+  g.fillStyle = '#0D1112'; g.fillRect(0, 0, cw, H);
+  g.fillStyle = '#EEF2F1'; g.font = `700 46px ${FONT}`; g.fillText('跟着提示，再拍一张', pad, pad + 46);
+  g.drawImage(a, pad, pad + 96, col, ha); g.drawImage(b, pad + col + gap, pad + 96, col, hb);
+  const ly = pad + 96 + ih + 56;
+  g.font = `500 30px ${FONT}`; g.fillStyle = '#95A29F'; g.fillText(la, pad, ly); g.fillText(lb, pad + col + gap, ly);
+  g.font = `600 44px "Barlow Condensed",${FONT}`; g.fillStyle = '#F3A443'; g.fillText(s1 + ' 分', pad + col - 110, ly + 2); g.fillStyle = '#4FD6B8'; g.fillText(s2 + ' 分', pad + col*2 + gap - 110, ly + 2);
+  g.font = `400 26px ${FONT}`; g.fillStyle = '#95A29F'; g.fillText('随手大师 · 拍照教练', pad, H - 36);
+  return c.toDataURL('image/jpeg', 0.9);
+}
+function showCard(url){ $('#cardOut').innerHTML = `<img src="${url}" alt="对比分享卡"><p class="note">长按图片保存，发朋友圈或小红书。</p>`; }
+async function showResult(c){
+  S.sheetOpen = true; $('#sheet').hidden = false; $('#sheet').scrollTop = 0;
+  const body = $('#resBody'); body.innerHTML = '<p class="note">正在点评…</p>';
+  const F = await analyze(c, c.width, c.height), E = evaluate(F);
+  const o = document.createElement('canvas'); o.width = c.width; o.height = c.height;
+  const og = o.getContext('2d'); og.drawImage(c, 0, 0); drawOverlay(og, F, E, E.rules);
+  const crop = suggestCrop(c, F, E); let E2 = null;
+  if(crop){ const F2 = await analyze(crop, crop.width, crop.height); E2 = evaluate(F2); }
+  const prev = S.prev;
+  body.innerHTML = `
+    <div class="res-score"><b>${E.score}</b><span>构图分</span></div>
+    <div id="resImg"></div>
+    <h3>怎么改</h3>
+    <div class="list">${E.rules.length ? E.rules.map(hintHTML).join('') : OK_HINT}</div>
+    ${crop ? `<h3>建议构图</h3><p class="note">自动摆正并按三分线裁剪后的效果，下一张照着这个拍。</p>
+      <div class="compare"><figure><img id="imgOrig" alt="原图"><figcaption>原图<b>${E.score}</b></figcaption></figure><figure><img id="imgCrop" alt="建议构图"><figcaption>建议<b>${E2.score}</b></figcaption></figure></div>` : ''}
+    <div class="row">
+      ${crop ? '<button class="btn ghost" id="mkCrop">生成建议对比卡</button>' : ''}
+      ${prev ? '<button class="btn ghost" id="mkPrev">和上一张做对比卡</button>' : ''}
+    </div>
+    <div id="cardOut"></div>
+    <button class="btn" id="again">按提示再拍一张</button>`;
+  $('#resImg').appendChild(o);
+  if(crop){ $('#imgOrig').src = c.toDataURL('image/jpeg', 0.85); $('#imgCrop').src = crop.toDataURL('image/jpeg', 0.85); $('#mkCrop').onclick = () => showCard(makeCard(c, crop, E.score, E2.score, '原图', '建议构图')); }
+  if(prev) $('#mkPrev').onclick = () => showCard(makeCard(prev.c, c, prev.score, E.score, '调整前', '调整后'));
+  $('#again').onclick = () => { closeSheet(); if(!S.live) $('#fileCam').click(); };
+  S.prev = {c, score: E.score}; S.still = c; S.isSample = false;
+}
+function closeSheet(){ S.sheetOpen = false; $('#sheet').hidden = true; if(!S.live) renderStill(); }
+
+/* ---------- UI wiring ---------- */
+let toastTimer;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 4200); }
+function setMode(m){ S.mode = m; document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === m ? 'true' : 'false')); S.active.clear(); if(!S.live) renderStill(); }
+document.querySelector('.seg').addEventListener('click', e => { const b = e.target.closest('button'); if(b) setMode(b.dataset.mode); });
+$('#btnShutter').addEventListener('click', () => { if(S.live) showResult(grabFrame()); else $('#fileCam').click(); });
+$('#btnAlbum').addEventListener('click', () => $('#fileAlbum').click());
+$('#btnLive').addEventListener('click', () => { if(S.live) stopLive(); else startLive(); });
+$('#fileCam').addEventListener('change', e => { handleFile(e.target.files[0]); e.target.value = ''; });
+$('#fileAlbum').addEventListener('change', e => { handleFile(e.target.files[0]); e.target.value = ''; });
+$('#closeSheet').addEventListener('click', closeSheet);
+
+buildPoseBar();
+S.still = drawSample();
+renderStill();
+
+(async () => {
+  try {
+    const mod = await import('./human.esm.js');
+    const Human = mod.Human || mod.default;
+    const h = new Human({
+      backend: 'webgl', modelBasePath: './models/', debug: false, warmup: 'none', cacheSensitivity: 0,
+      filter: {enabled: false}, face: {enabled: false}, hand: {enabled: false}, object: {enabled: false}, gesture: {enabled: false}, segmentation: {enabled: false},
+      body: {enabled: true, modelPath: 'movenet-lightning.json', minConfidence: 0.2, maxDetected: 1},
+    });
+    await h.load();
+    S.human = h;
+    $('#status').textContent = '人像识别已就绪 · 照片只在手机本地分析，不上传';
+  } catch(e){
+    $('#status').textContent = '人像识别没加载成功，构图、水平和光线提示仍可用';
+  }
+})();
+</script>
+
+</body>
+</html>
