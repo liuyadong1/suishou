@@ -44,6 +44,10 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 .hint strong{font-size:15px;font-weight:600;align-self:end}
 .hint p{align-self:start}
 .hint p{margin:0;font-size:13px;color:var(--muted);line-height:1.5}
+.scenebar{display:flex;gap:8px;padding:0 16px 10px;overflow-x:auto;scrollbar-width:none}
+.scenebar::-webkit-scrollbar{display:none}
+.scene-chip{padding:6px 12px;position:relative}
+.scene-chip .rec{font-size:10px;color:var(--target);margin-left:4px}
 .posebar{display:flex;align-items:center;gap:8px;padding:10px 16px 0;overflow-x:auto;scrollbar-width:none}
 .posebar::-webkit-scrollbar{display:none}
 .posebar label{flex:0 0 auto;font-size:12px;color:var(--muted)}
@@ -94,13 +98,15 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 <body>
 <div id="app">
   <header class="top">
-    <div class="brand">随手大师<small>拍照教练 v0.2.1</small></div>
+    <div class="brand">随手大师<small>拍照教练 v0.3</small></div>
     <div class="seg" role="group" aria-label="拍摄模式">
       <button id="m-auto" data-mode="auto" aria-pressed="true">自动</button>
       <button id="m-scene" data-mode="scene" aria-pressed="false">风景</button>
       <button id="m-portrait" data-mode="portrait" aria-pressed="false">人像</button>
     </div>
   </header>
+
+  <div class="scenebar" id="scenebar" role="group" aria-label="细分场景"></div>
 
   <main class="stage" id="stage">
     <canvas id="view" width="900" height="1200" aria-label="取景画面与构图提示"></canvas>
@@ -148,7 +154,12 @@ const view = $('#view'), vctx = view.getContext('2d');
 const css = getComputedStyle(document.documentElement);
 const C = { target: css.getPropertyValue('--target').trim(), now: css.getPropertyValue('--now').trim(), warn: css.getPropertyValue('--warn').trim() };
 const FONT = '"PingFang SC","MiSans","Noto Sans SC",sans-serif';
-const S = { mode:'auto', pose:'none', live:false, human:null, video:null, stream:null, sensor:null, busy:false, lastRun:0, lastF:null, lastE:null, shown:[], active:new Map(), still:null, isSample:true, prev:null, sheetOpen:false, scoreS:null, facing:'environment' };
+const S = { mode:'auto', pose:'none', live:false, human:null, video:null, stream:null, sensor:null, busy:false, lastRun:0, lastF:null, lastE:null, shown:[], active:new Map(), still:null, isSample:true, prev:null, sheetOpen:false, scoreS:null, facing:'environment', sub:'vista', subManual:false, rec:'vista', recCand:null, recSince:0, shake:null };
+const SUBS = {
+  vista:{kind:'scene', name:'山海远景'}, city:{kind:'scene', name:'城市建筑'}, sunset:{kind:'scene', name:'日出日落'}, night:{kind:'scene', name:'夜景灯光'}, macro:{kind:'scene', name:'花草特写'},
+  full:{kind:'portrait', name:'全身照'}, half:{kind:'portrait', name:'半身照'}, travel:{kind:'portrait', name:'人景打卡'}, sit:{kind:'portrait', name:'坐姿'}, selfie:{kind:'portrait', name:'自拍'},
+};
+const SUB_ORDER = { scene:['vista','city','sunset','night','macro'], portrait:['full','half','travel','sit','selfie'] };
 const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
 const mid = (a,b) => [(a[0]+b[0])/2, (a[1]+b[1])/2];
 const dist = (a,b) => Math.hypot(a[0]-b[0], a[1]-b[1]);
@@ -156,10 +167,21 @@ const dist = (a,b) => Math.hypot(a[0]-b[0], a[1]-b[1]);
 /* ---------- pose templates (body units: hip centre = 0,0; torso length = 1; x = image left/right) ---------- */
 const T0 = {nose:[0,-1.45], ls:[-0.4,-1], rs:[0.4,-1], le:[-0.47,-0.45], re:[0.47,-0.45], lw:[-0.5,0.05], rw:[0.5,0.05], lh:[-0.27,0], rh:[0.27,0], lk:[-0.25,1.02], rk:[0.25,1.02], la:[-0.26,2], ra:[0.26,2]};
 const POSES = [
-  {id:'relax', name:'稍息站姿', tip:'一只脚在前，重心放在后脚', d:{rk:[0.1,1.0], ra:[0.02,1.97], lk:[-0.22,1.03], la:[-0.3,2], re:[0.52,-0.42], rw:[0.36,0.02]}},
-  {id:'hip', name:'单手叉腰', tip:'手肘向外打开，显得腰细', d:{le:[-0.8,-0.52], lw:[-0.32,-0.06], rk:[0.22,1.0], ra:[0.32,1.95]}},
-  {id:'hair', name:'抬手扶发', tip:'手轻碰头发，肩膀放松', d:{re:[0.66,-1.45], rw:[0.2,-1.62], rk:[0.08,1.0], ra:[-0.02,1.98]}},
-  {id:'pocket', name:'双手插兜', tip:'双脚微微分开，下巴微收', d:{le:[-0.58,-0.4], re:[0.58,-0.4], lw:[-0.31,0.02], rw:[0.31,0.02], lk:[-0.24,1.02], rk:[0.24,1.02], la:[-0.32,2], ra:[0.32,2]}},
+  {sub:'full', id:'relax', name:'稍息站姿', tip:'一只脚在前，重心放在后脚', d:{rk:[0.1,1.0], ra:[0.02,1.97], lk:[-0.22,1.03], la:[-0.3,2], re:[0.52,-0.42], rw:[0.36,0.02]}},
+  {sub:'full', id:'walk', name:'走路抓拍', tip:'自然往前走，手臂跟着摆', d:{lk:[-0.2,1.0], la:[-0.4,1.94], rk:[0.2,1.0], ra:[0.38,1.95], le:[-0.5,-0.42], lw:[-0.34,0.06], re:[0.44,-0.46], rw:[0.6,-0.02]}},
+  {sub:'full', id:'turn', name:'侧身回头', tip:'身体侧过去，头转回镜头', d:{nose:[0.12,-1.45], ls:[-0.22,-1], rs:[0.22,-1], lh:[-0.15,0], rh:[0.15,0], le:[-0.28,-0.45], lw:[-0.3,0.05], re:[0.26,-0.45], rw:[0.28,0.05], lk:[-0.12,1.02], la:[-0.14,2], rk:[0.14,1.0], ra:[0.22,1.97]}},
+  {sub:'half', id:'chin', name:'托腮', tip:'手轻托下巴，别用力压脸', d:{re:[0.3,-0.4], rw:[0.08,-1.25]}},
+  {sub:'half', id:'arms', name:'抱臂', tip:'手臂交叉放松，肩膀下沉', d:{le:[-0.42,-0.5], lw:[0.25,-0.55], re:[0.42,-0.5], rw:[-0.25,-0.55]}},
+  {sub:'half', id:'hair', name:'撩头发', tip:'手轻碰头发，肩膀放松', d:{re:[0.66,-1.45], rw:[0.2,-1.62]}},
+  {sub:'travel', id:'open', name:'张开双臂', tip:'双臂打开，像在拥抱风景', d:{le:[-0.85,-1.15], lw:[-1.25,-1.35], re:[0.85,-1.15], rw:[1.25,-1.35]}},
+  {sub:'travel', id:'back', name:'背影远眺', tip:'背对镜头看远处，双手放身后', d:{le:[-0.42,-0.45], lw:[-0.05,-0.05], re:[0.42,-0.45], rw:[0.05,-0.05]}},
+  {sub:'travel', id:'look', name:'回眸', tip:'往前走两步再回头看镜头', d:{nose:[0.14,-1.45], ls:[-0.24,-1], rs:[0.24,-1], lh:[-0.16,0], rh:[0.16,0], le:[-0.3,-0.45], lw:[-0.32,0.05], re:[0.3,-0.6], rw:[0.22,-1.0], lk:[-0.12,1.02], la:[-0.16,2], rk:[0.14,1.0], ra:[0.2,1.97]}},
+  {sub:'sit', id:'side', name:'侧坐', tip:'腿斜着放，一只手撑地', d:{lk:[-0.75,0.15], la:[-0.85,1.0], rk:[-0.6,0.3], ra:[-0.95,1.05], le:[-0.45,-0.45], lw:[-0.6,0.1], re:[0.55,-0.3], rw:[0.6,0.35]}},
+  {sub:'sit', id:'hug', name:'抱膝', tip:'双手抱住膝盖，下巴放在膝盖上', d:{lk:[-0.15,-0.55], la:[-0.25,0.35], rk:[0.15,-0.55], ra:[0.25,0.35], le:[-0.45,-0.6], lw:[0.05,-0.45], re:[0.45,-0.6], rw:[-0.05,-0.45]}},
+  {sub:'sit', id:'lean', name:'单手撑地', tip:'腿往一侧伸直，身体稍微后仰', d:{lk:[-0.7,0.2], la:[-1.4,0.4], rk:[-0.6,0.05], ra:[-1.3,0.15], re:[0.55,-0.35], rw:[0.62,0.3], le:[-0.42,-0.45], lw:[-0.5,0.0]}},
+  {sub:'selfie', id:'tilt', name:'歪头', tip:'头轻轻歪向一侧，眼睛看镜头', d:{nose:[0.15,-1.42], re:[0.6,-0.85], rw:[0.9,-1.2]}},
+  {sub:'selfie', id:'yeah', name:'比耶', tip:'手比耶放在脸旁边', d:{le:[-0.55,-0.75], lw:[-0.35,-1.45], re:[0.6,-0.85], rw:[0.9,-1.2]}},
+  {sub:'selfie', id:'profile', name:'侧脸', tip:'脸转 45°，下巴微收', d:{nose:[0.22,-1.45], ls:[-0.3,-1], rs:[0.3,-1], re:[0.5,-0.85], rw:[0.8,-1.2]}},
 ].map(p => ({...p, k:{...T0, ...p.d}}));
 const BONES = [['ls','rs'],['ls','le'],['le','lw'],['rs','re'],['re','rw'],['ls','lh'],['rs','rh'],['lh','rh'],['lh','lk'],['lk','la'],['rh','rk'],['rk','ra']];
 const SEGS = [['ls','le','画面左侧的手臂'],['le','lw','画面左侧的手'],['rs','re','画面右侧的手臂'],['re','rw','画面右侧的手'],['lh','lk','画面左侧的腿'],['lk','la','画面左侧的脚'],['rh','rk','画面右侧的腿'],['rk','ra','画面右侧的脚']];
@@ -169,12 +191,56 @@ function poseSVG(k){
   const lines = BONES.map(([a,b]) => `M${pt(a)}L${pt(b)}`).join('');
   return `<svg viewBox="-1 -1.9 2 4.1" aria-hidden="true"><path d="${lines}" stroke="currentColor" stroke-width="0.13" fill="none" stroke-linecap="round"/><circle cx="${k.nose[0]}" cy="${k.nose[1]}" r="0.26" fill="none" stroke="currentColor" stroke-width="0.13"/></svg>`;
 }
-function buildPoseBar(){
+function renderPoseBar(){
+  const bar = $('#posebar'), list = POSES.filter(p => p.sub === S.sub);
+  if(!list.some(p => p.id === S.pose)) S.pose = 'none';
+  bar.hidden = list.length === 0;
+  const chip = (id, name, svg) => `<button class="chip" id="pose-${id}" data-pose="${id}" aria-pressed="${id === S.pose}">${svg}${name}</button>`;
+  bar.innerHTML = '<label>姿势模板</label>' + chip('none', '不用模板', '') + list.map(p => chip(p.id, p.name, poseSVG(p.k))).join('');
+}
+function initPoseBar(){
   const bar = $('#posebar');
-  const mk = (id, name, svg) => { const b = document.createElement('button'); b.className = 'chip'; b.id = 'pose-' + id; b.dataset.pose = id; b.setAttribute('aria-pressed', id === S.pose ? 'true' : 'false'); b.innerHTML = svg + name; bar.appendChild(b); };
-  mk('none', '不用模板', '');
-  POSES.forEach(p => mk(p.id, p.name, poseSVG(p.k)));
-  bar.addEventListener('click', e => { const b = e.target.closest('.chip'); if(!b) return; S.pose = b.dataset.pose; bar.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); S.active.clear(); if(S.pose !== 'none' && S.mode === 'scene') setMode('auto'); if(!S.live) renderStill(); });
+  bar.addEventListener('click', e => { const b = e.target.closest('.chip'); if(!b) return; S.pose = b.dataset.pose; bar.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); S.active.clear(); if(!S.live) renderStill(); });
+}
+function renderSceneBar(){
+  const kind = SUBS[S.sub].kind;
+  $('#scenebar').innerHTML = SUB_ORDER[kind].map(id => `<button class="chip scene-chip" id="sub-${id}" data-sub="${id}" aria-pressed="${id === S.sub}">${SUBS[id].name}${id === S.rec ? '<span class="rec">推荐</span>' : ''}</button>`).join('');
+}
+function setSub(id, manual){
+  if(!SUBS[id]) return;
+  const changed = S.sub !== id;
+  S.sub = id; if(manual) S.subManual = true;
+  renderSceneBar();
+  if(changed){ renderPoseBar(); S.active.clear(); }
+}
+function initSceneBar(){
+  $('#scenebar').addEventListener('click', e => { const b = e.target.closest('.scene-chip'); if(!b) return; setSub(b.dataset.sub, true); if(!S.live) renderStill(); });
+}
+function recommend(F){
+  const P = F.person;
+  if(S.mode !== 'scene'){
+    if(S.facing === 'user' && (P || S.mode === 'portrait' || !F.horizon)) return 'selfie';
+    if(P){
+      if(P.heightRatio < 0.34) return 'travel';
+      if(P.sitting) return 'sit';
+      if(P.full) return 'full';
+      if(P.kneeY == null) return 'half';
+      return 'full';
+    }
+    if(S.mode === 'portrait') return 'full';
+  }
+  if(F.mean < 60) return 'night';
+  if(F.warm > 0.16 && F.sunMean > 200) return 'sunset';
+  if(F.vdens > 0.06) return 'city';
+  if(F.centerSharp > F.borderSharp*1.8 && F.centerSharp > 6) return 'macro';
+  return 'vista';
+}
+function applyRecommendation(F, live){
+  const cand = recommend(F);
+  if(!live){ S.rec = cand; if(!S.subManual) setSub(cand, false); else renderSceneBar(); return; }
+  const now = performance.now();
+  if(cand !== S.recCand){ S.recCand = cand; S.recSince = now; }
+  if(cand !== S.rec && now - S.recSince > 1000){ S.rec = cand; if(!S.subManual) setSub(cand, false); else renderSceneBar(); }
 }
 
 /* ---------- image analysis ---------- */
@@ -189,7 +255,49 @@ function imageStats(src, W, H){
   const box = (x, y, rw, rh) => { const x0 = clamp(Math.floor(x*w), 0, w-1), y0 = clamp(Math.floor(y*h), 0, h-1); const x1 = clamp(Math.ceil((x+rw)*w), x0+1, w), y1 = clamp(Math.ceil((y+rh)*h), y0+1, h); return [x0,y0,x1,y1]; };
   const region = (x, y, rw, rh) => { const [x0,y0,x1,y1] = box(x,y,rw,rh); let s = 0, n = 0; for(let yy = y0; yy < y1; yy++) for(let xx = x0; xx < x1; xx++){ s += L[yy*w+xx]; n++; } return n ? s/n : mean; };
   const sd = (x, y, rw, rh) => { const m = region(x,y,rw,rh); const [x0,y0,x1,y1] = box(x,y,rw,rh); let s = 0, n = 0; for(let yy = y0; yy < y1; yy++) for(let xx = x0; xx < x1; xx++){ s += (L[yy*w+xx]-m)**2; n++; } return n ? Math.sqrt(s/n) : 0; };
-  return {mean, hi: hi/L.length, lo: lo/L.length, region, sd, horizon: findHorizon(L, w, h)};
+  // colour: warm (orange-red) share
+  let warm = 0;
+  for(let j = 0; j < d.length; j += 4){ if(d[j] - d[j+2] > 45 && d[j] > 120) warm++; }
+  // brightest cell on a 6-column grid
+  const gc = 6, gr = Math.max(4, Math.round(gc*h/w)), cw = w/gc, chh = h/gr; let sunMean = 0, sunX = 0.5, sunY = 0.5;
+  for(let r = 0; r < gr; r++) for(let c = 0; c < gc; c++){ const m = region(c/gc, r/gr, 1/gc, 1/gr); if(m > sunMean){ sunMean = m; sunX = (c + 0.5)/gc; sunY = (r + 0.5)/gr; } }
+  // edges: vertical lines (city), sharpness (macro), top band, lower third texture
+  let vN = 0, vSumL = 0, vNL = 0, vSumR = 0, vNR = 0, topE = 0, topN = 0, lowE = 0, lowN = 0;
+  let cS = 0, cN = 0, bS = 0, bN = 0, lw = 0, lx = 0, ly = 0, lxx = 0, lyy = 0;
+  for(let y = 1; y < h - 1; y++){
+    for(let x = 1; x < w - 1; x++){
+      const i = y*w + x, gx = L[i+1] - L[i-1], gy = L[i+w] - L[i-w], agx = Math.abs(gx), agy = Math.abs(gy);
+      const strong = agx + agy > 50;
+      if(agx > 40 && agy < agx*0.5){ vN++; const a = Math.atan(gy/gx); if(x < w/2){ vSumL += a; vNL++; } else { vSumR += a; vNR++; } }
+      if(y < h*0.07){ topN++; if(strong) topE++; }
+      if(y > h*0.7){ lowN++; if(strong) lowE++; }
+      const lap = Math.abs(4*L[i] - L[i-1] - L[i+1] - L[i-w] - L[i+w]);
+      const nx = x/w, ny = y/h;
+      if(nx > 0.3 && nx < 0.7 && ny > 0.3 && ny < 0.7){ cS += lap; cN++; }
+      else if(nx < 0.15 || nx > 0.85 || ny < 0.15 || ny > 0.85){ bS += lap; bN++; }
+      if(lap > 30){ lw += lap; lx += lap*nx; ly += lap*ny; lxx += lap*nx*nx; lyy += lap*ny*ny; }
+    }
+  }
+  const inner = (w - 2)*(h - 2);
+  const mL = vNL ? vSumL/vNL : 0, mR = vNR ? vSumR/vNR : 0;
+  const sharpX = lw ? lx/lw : 0.5, sharpY = lw ? ly/lw : 0.5;
+  const spread = lw ? Math.sqrt(Math.max(0, lxx/lw - sharpX*sharpX) + Math.max(0, lyy/lw - sharpY*sharpY)) : 1;
+  // symmetry around a vertical axis (best shift)
+  let bestDiff = Infinity, bestShift = 0;
+  for(let s = -16; s <= 16; s += 2){
+    const c2 = w + 2*s; let diff = 0, n = 0;
+    for(let y = 0; y < h; y += 2){ for(let x = Math.max(0, c2 - w + 1); x < Math.min(w, c2/2); x += 2){ const xm = c2 - 1 - x; if(xm < 0 || xm >= w) continue; diff += Math.abs(L[y*w+x] - L[y*w+xm]); n++; } }
+    if(n > 200){ diff /= n; if(diff < bestDiff){ bestDiff = diff; bestShift = s; } }
+  }
+  const contrast = sd(0, 0, 1, 1) || 1;
+  return {
+    mean, hi: hi/L.length, lo: lo/L.length, region, sd, horizon: findHorizon(L, w, h),
+    warm: warm/(w*h), sunMean, sunX, sunY,
+    vdens: vN/inner, keystone: (mL - mR)*180/Math.PI,
+    topEdge: topN ? topE/topN : 0, lowEdge: lowN ? lowE/lowN : 0, lowSd: sd(0, 0.7, 1, 0.3),
+    centerSharp: cN ? cS/cN : 0, borderSharp: bN ? bS/bN : 0, sharpX, sharpY, spread,
+    symScore: Math.max(0, 1 - bestDiff/(contrast*1.2)), symShift: bestShift/w,
+  };
 }
 function lineFit(p){ const n = p.length; let sx=0, sy=0, sxx=0, sxy=0; for(const [x,y] of p){ sx+=x; sy+=y; sxx+=x*x; sxy+=x*y; } const den = n*sxx - sx*sx || 1; const a = (n*sxy - sx*sy) / den; return {a, b: (sy - a*sx) / n}; }
 function findHorizon(L, w, h){
@@ -227,10 +335,26 @@ function bodyFrom(res, W, H){
   let T, origin;
   if(hm){ T = dist(sm, hm); origin = hm; } else { T = sw / 0.8; origin = [sm[0], sm[1] + T]; }
   if(T < 8) return null;
-  const ankles = [g.la, g.ra].filter(Boolean), knees = [g.lk, g.rk].filter(Boolean);
+  const ankles = [g.la, g.ra].filter(Boolean), knees = [g.lk, g.rk].filter(Boolean), elbows = [g.le, g.re].filter(Boolean);
   const fc = g.nose || [sm[0], sm[1] - T*0.45], fr = Math.max(sw*0.3, 6);
+  const eyes = [k.leftEye, k.rightEye].filter(Boolean), ears = [k.leftEar, k.rightEar].filter(Boolean);
+  const eyeY = eyes.length ? eyes.reduce((s, p) => s + p[1], 0)/eyes.length/H : (g.nose ? (g.nose[1] - sw*0.08)/H : null);
+  const faceW = ears.length === 2 ? dist(ears[0], ears[1])*1.25/W : eyes.length === 2 ? dist(eyes[0], eyes[1])*2.6/W : sw*0.55/W;
+  const headTopN = g.nose ? (g.nose[1] - 0.6*Math.abs(sm[1] - g.nose[1])) / H : (sm[1] - T*0.75) / H;
+  const ankleYN = ankles.length ? Math.max(...ankles.map(p => p[1])) / H : null;
+  let sitting = false, thighShort = false;
+  if(hm && knees.length){
+    const kn = mid(knees[0], knees[knees.length - 1]);
+    sitting = (kn[1] - hm[1]) < 0.45*T;
+    thighShort = (g.lk && g.lh ? dist(g.lk, g.lh) : dist(kn, hm)) < 0.42*T;
+  }
   return {
-    g, T, origin,
+    g, T, origin, eyeY, faceW, sitting, thighShort,
+    faceC: [fc[0]/W, fc[1]/H],
+    neckY: g.nose ? (g.nose[1]*0.35 + sm[1]*0.65)/H : sm[1]/H,
+    elbowY: elbows.length ? Math.max(...elbows.map(p => p[1]))/H : null,
+    square: sw/T > 0.85,
+    heightRatio: (ankleYN != null ? ankleYN : 1) - headTopN,
     cx: (hm ? (sm[0]+hm[0])/2 : sm[0]) / W, cy: sm[1] / H,
     headTop: g.nose ? (g.nose[1] - 0.6*Math.abs(sm[1] - g.nose[1])) / H : (sm[1] - T*0.75) / H,
     ankleY: ankles.length ? Math.max(...ankles.map(p => p[1])) / H : null,
@@ -250,7 +374,7 @@ async function analyze(src, W, H, live = false){
     const sky = st.region(0, 0, 1, top), ground = st.region(0, Math.min(0.97, hz.y + 0.06), 1, Math.max(0.03, 1 - hz.y - 0.06));
     if(sky < ground + 6) hz = null; else hz.skySd = st.sd(0, 0, 1, top);
   }
-  return {W, H, mean: st.mean, hi: st.hi, region: st.region, horizon: hz, person, sensor: live ? S.sensor : null};
+  return {...st, W, H, horizon: hz, person, sensor: live ? S.sensor : null, shake: live ? S.shake : null};
 }
 
 /* ---------- pose matching ---------- */
@@ -293,44 +417,126 @@ function matchPose(P){
 }
 
 /* ---------- rules ---------- */
+function nearestThirds(x, y){
+  const tx = x < 0.5 ? 1/3 : 2/3, ty = y < 0.5 ? 1/3 : 2/3;
+  return [tx, ty];
+}
 function evaluate(F){
   const out = [], add = (id, pri, pen, title, sub, draw) => out.push({id, pri, pen, title, sub, draw});
-  const P = S.mode === 'scene' ? null : F.person;
-  const portrait = !!P, scene = !portrait && S.mode !== 'portrait';
-  let theta = null, src = '';
-  if(F.sensor != null){ theta = F.sensor; src = 'sensor'; }
-  else if(F.horizon && (scene || F.horizon.conf > 0.8)){ theta = -F.horizon.angle; src = 'horizon'; }
-  if(theta != null && Math.abs(theta) >= 1.5){
-    add('tilt', 1, Math.min(25, Math.round(Math.abs(theta)*4)), `画面歪了 ${Math.abs(theta).toFixed(1)}°`, theta > 0 ? '手机右侧抬高一点，摆正再拍' : '手机左侧抬高一点，摆正再拍', {type:'tilt', theta, src});
-  }
-  if(scene && F.horizon){
-    const y = F.horizon.y;
-    if(y > 0.4 && y < 0.6){
-      const t = (F.horizon.skySd || 0) > 16 ? 2/3 : 1/3;
-      add('horizon', 2, 12, '地平线压在画面正中', t > y ? '手机往上仰一点，地平线落到下三分线，多留天空' : '手机往下压一点，地平线落到上三分线，多拍地面', {type:'hline', y, t});
+  const sub = S.sub, kind = SUBS[sub].kind;
+  const P = kind === 'portrait' ? F.person : null;
+  const portrait = kind === 'portrait', scene = kind === 'scene';
+
+  // tilt: everywhere except selfies and close-ups
+  if(sub !== 'selfie' && sub !== 'macro'){
+    let theta = null, src = '';
+    if(F.sensor != null){ theta = F.sensor; src = 'sensor'; }
+    else if(F.horizon && (scene || F.horizon.conf > 0.8)){ theta = -F.horizon.angle; src = 'horizon'; }
+    if(theta != null && Math.abs(theta) >= 1.5){
+      add('tilt', 1, Math.min(25, Math.round(Math.abs(theta)*4)), `画面歪了 ${Math.abs(theta).toFixed(1)}°`, theta > 0 ? '手机右侧抬高一点，摆正再拍' : '手机左侧抬高一点，摆正再拍', {type:'tilt', theta, src});
     }
   }
-  if(portrait){
-    const t = P.cx < 0.5 ? 1/3 : 2/3, d = t - P.cx;
-    if(Math.abs(P.cx - 0.5) > 0.05 && Math.abs(d) > 0.06) add('pos', 2, 15, d > 0 ? '手机向左平移一点' : '手机向右平移一点', `让人物落在${t < 0.5 ? '左' : '右'}侧三分线上`, {type:'move', x:P.cx, y:P.cy, tx:t});
-    if(P.headTop < 0.02) add('head', 3, 12, '头顶快被切到了', '手机稍微往上抬，头顶留一点空', {type:'band'});
-    else if(P.headTop > 0.28 && !(P.full && P.ankleY > 0.9)) add('headroom', 3, 10, '头顶空太多', '手机往下压一点，或者走近一步', {type:'headroom', y:P.headTop});
-    if(!P.full && P.kneeY != null && P.kneeY > 0.82) add('knee', 3, 12, '画面在膝盖附近截断', '要么拍全脚，要么截到大腿中部', {type:'cut', y:P.kneeY});
-    if(P.full && P.ankleY > 0.97) add('feet', 3, 10, '脚快被切掉了', '手机往上抬一点，脚下留出空间', {type:'cut', y:P.ankleY});
-    else if(P.full && P.ankleY > 0.78) add('legs', 7, 0, '显腿长小技巧', '手机降到腰部高度、稍微仰拍，脚踩在画面底边附近', null);
+
+  if(scene){
+    const hz = F.horizon;
+    if(sub === 'vista'){
+      if(hz && hz.y > 0.4 && hz.y < 0.6){
+        const t = (hz.skySd || 0) > 16 ? 2/3 : 1/3;
+        add('horizon', 2, 12, '地平线压在画面正中', t > hz.y ? '手机往上仰一点，地平线落到下三分线，多留天空' : '手机往下压一点，地平线落到上三分线，多拍地面', {type:'hline', y:hz.y, t});
+      }
+      if(hz && (hz.skySd || 0) < 5 && hz.y > 0.5) add('plainsky', 4, 6, '天空没有云', '手机往下压，少拍天空，多拍地面', {type:'hline', y:hz.y, t:1/3});
+      if(hz && F.lowEdge < 0.04 && F.lowSd < 12) add('fore', 5, 6, '前景有点空', '画面下方放一点石头、花草或栏杆，更有层次', null);
+    }
+    if(sub === 'city'){
+      if(Math.abs(F.keystone) > 2.5) add('keystone', 2, 12, F.keystone > 0 ? '建筑竖线往里倒' : '建筑竖线往外张', F.keystone > 0 ? '手机别仰太多，竖直拿，后退几步再拍' : '手机别往下压，平视拍', {type:'keystone', ks:F.keystone});
+      if(F.symScore > 0.55 && Math.abs(F.symShift) > 0.03) add('sym', 3, 8, '对称建筑没对正', F.symShift > 0 ? '手机向右平移一点，对准中轴线' : '手机向左平移一点，对准中轴线', {type:'sym', c:0.5 + F.symShift});
+      if(F.topEdge > 0.15 && F.vdens > 0.04) add('top', 4, 6, '楼顶可能被切掉', '后退几步，把建筑拍完整', {type:'topband'});
+    }
+    if(sub === 'sunset'){
+      if(F.hi > 0.04) add('sunexp', 2, 12, '天空过曝', '点一下画面最亮的地方，降低曝光', null);
+      if(hz && hz.y < 0.58) add('sunhz', 3, 10, '天空留得不够', '手机往上仰，地平线放到下三分线，天空占 2/3', {type:'hline', y:hz.y, t:2/3});
+      if(F.sunMean > 220 && Math.abs(F.sunX - 0.5) < 0.12 && Math.abs(F.sunY - 0.5) < 0.15){
+        const [tx, ty] = nearestThirds(F.sunX, F.sunY);
+        add('sunpos', 3, 8, '太阳在正中间', '移动手机，把太阳放到三分线交点', {type:'arrow2', x:F.sunX, y:F.sunY, tx, ty, label:'太阳放这里'});
+      }
+      const Pp = F.person;
+      if(Pp){ const [fx, fy, fw, fh] = Pp.face; if(F.region(fx/F.W, fy/F.H, fw/F.W, fh/F.H) < F.mean*0.6) add('silhouette', 6, 0, '可以拍剪影', '人物站在太阳前，点亮部测光，拍出黑色剪影', null); }
+    }
+    if(sub === 'night'){
+      if(F.shake != null && F.shake > 6) add('shake', 1, 12, '手机在抖', '双手拿稳，或靠在栏杆、墙上，稳定条变绿再拍', {type:'shakepill'});
+      if(F.hi > 0.06) add('lights', 3, 8, '灯光过曝', '点一下最亮的灯，降低曝光', null);
+      if(F.mean < 40) add('nightdark', 4, 6, '画面很暗', '打开手机自带的夜景模式，效果更好', null);
+      add('nightmode', 8, 0, '夜景小技巧', '开启夜景模式，按快门后保持 2 秒不动', null);
+    }
+    if(sub === 'macro'){
+      if(F.borderSharp > F.centerSharp*0.9 && F.borderSharp > 8) add('clutter', 2, 12, '背景太乱', '换个角度，或蹲下来对着天空拍，背景更干净', null);
+      if(F.spread < 0.22 && Math.abs(F.sharpX - 0.5) < 0.08 && Math.abs(F.sharpY - 0.5) < 0.08){
+        const [tx, ty] = nearestThirds(F.sharpX + 0.001, F.sharpY + 0.001);
+        add('macropos', 3, 8, '主体在正中间', '移动手机，把主体放到三分线交点', {type:'arrow2', x:F.sharpX, y:F.sharpY, tx, ty, label:'主体放这里'});
+      }
+      if(F.spread > 0.3) add('closer', 3, 8, '主体太小', '再靠近一点，让主体占画面 1/3 以上', null);
+    }
+    if(sub !== 'night' && sub !== 'sunset'){
+      if(F.mean < 55) add('dark', 4, 10, '画面偏暗', '换到更亮的位置，或拿稳手机开夜景模式', null);
+      if(F.hi > 0.12) add('bright', 4, 10, '亮部过曝', '点一下画面最亮的地方，降低曝光', null);
+    }
+  }
+
+  if(portrait && !P){
+    if(S.human) add('noperson', 6, 0, '还没找到人物', sub === 'selfie' ? '把脸放进椭圆框里' : '让人物完整进入画面，至少露出肩膀', null);
+  }
+  if(P){
+    const thirdsPos = () => {
+      const t = P.cx < 0.5 ? 1/3 : 2/3, d = t - P.cx;
+      if(Math.abs(P.cx - 0.5) > 0.05 && Math.abs(d) > 0.06) add('pos', 2, 15, d > 0 ? '手机向左平移一点' : '手机向右平移一点', `让人物落在${t < 0.5 ? '左' : '右'}侧三分线上`, {type:'move', x:P.cx, y:P.cy, tx:t});
+    };
+    const headRules = (maxTop) => {
+      if(P.headTop < 0.02) add('head', 3, 12, '头顶快被切到了', '手机稍微往上抬，头顶留一点空', {type:'band'});
+      else if(P.headTop > maxTop && !(P.full && P.ankleY > 0.9)) add('headroom', 3, 10, '头顶空太多', '手机往下压一点，或者走近一步', {type:'headroom', y:P.headTop});
+    };
+    if(sub === 'full'){
+      thirdsPos(); headRules(0.15);
+      if(!P.full && P.kneeY != null) add('nofeet', 3, 10, '脚没拍进来', '全身照要拍到脚：手机往下一点，或后退一步', {type:'cut', y:Math.min(0.97, P.kneeY)});
+      if(P.full && P.ankleY > 0.97) add('feet', 3, 10, '脚快被切掉了', '手机往上抬一点，脚下留出空间', {type:'cut', y:P.ankleY});
+      else if(P.full && P.ankleY < 0.88) add('legs', 4, 4, '脚离底边太远', '手机降到腰部高度、稍微仰拍，脚踩在画面底边附近更显腿长', {type:'guideH', y:0.95, from:P.ankleY, label:'脚踩这条线'});
+    }
+    if(sub === 'half'){
+      headRules(0.2);
+      if(P.eyeY != null && Math.abs(P.eyeY - 1/3) > 0.06) add('eyes', 2, 12, P.eyeY > 1/3 ? '眼睛位置太低' : '眼睛位置太高', P.eyeY > 1/3 ? '手机往下压一点，眼睛放到上三分线' : '手机往上抬一点，眼睛放到上三分线', {type:'guideH', y:1/3, from:P.eyeY, label:'眼睛放这里'});
+      if(P.elbowY != null && P.elbowY > 0.92 && P.elbowY < 1.0) add('elbow', 3, 10, '在手肘处截断', '截在腰部或胯部，别正好切在手肘', {type:'cut', y:P.elbowY});
+      if(P.square) add('turn', 5, 4, '身体正对镜头', '身体侧转 30°，脸转回镜头，更显瘦', null);
+    }
+    if(sub === 'travel'){
+      thirdsPos();
+      if(P.heightRatio > 0.42) add('toobig', 2, 12, '人占得太大', '后退几步，或让人走远一点，多留风景', {type:'sizebox', x:P.cx});
+      if(F.horizon && Math.abs(F.horizon.y - P.neckY) < 0.03) add('neck', 3, 10, '地平线穿过脖子', '手机升高或降低一点，让地平线避开脖子', {type:'guideH', y:F.horizon.y, color:'warn', label:'避开脖子'});
+    }
+    if(sub === 'sit'){
+      thirdsPos();
+      if(P.eyeY != null && P.eyeY > 0.5) add('sitlevel', 2, 10, '在俯拍坐着的人', '手机降低到坐着的人眼睛高度，平视拍', null);
+      if(P.thighShort) add('knees', 3, 8, '膝盖对着镜头', '腿斜着伸出去，别让膝盖正对镜头', null);
+    }
+    if(sub === 'selfie'){
+      const ox = 0.5, oy = 0.38, dx = P.faceC[0] - ox, dy = P.faceC[1] - oy;
+      if(P.faceW > 0.55) add('far', 2, 10, '离得太近了', '手机拿远一点，把脸放进椭圆框', {type:'oval'});
+      else if(P.faceW < 0.2) add('near', 3, 6, '脸太小了', '手机拿近一点，把脸放进椭圆框', {type:'oval'});
+      if(Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1){
+        const txt = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? '手机向右移一点' : '手机向左移一点') : (dy > 0 ? '手机往下压一点' : '手机往上抬一点');
+        add('facepos', 2, 10, '脸没在框里', txt + '，让脸进入椭圆框', {type:'oval'});
+      }
+      add('chin', 7, 0, '自拍小技巧', '手机举到比眼睛略高，斜向下 15°，下巴微收', null);
+    }
     const [fx, fy, fw, fh] = P.face, face = F.region(fx/F.W, fy/F.H, fw/F.W, fh/F.H);
-    if(F.mean > 85 && face < F.mean * 0.62) add('backlight', 2, 15, '人物脸偏暗（逆光）', '两人一起转身 45° 变侧光，或点一下脸部测光', {type:'box', r:P.face});
+    if(F.mean > 85 && face < F.mean * 0.62) add('backlight', 2, 15, '人物脸偏暗（逆光）', sub === 'selfie' ? '转身面向光源，让光照到脸上' : '两人一起转身 45° 变侧光，或点一下脸部测光', {type:'box', r:P.face});
     if(S.pose !== 'none'){
       const m = matchPose(P); P.match = m;
       if(m){ if(m.score < 75) add('pose', 5, Math.round((75 - m.score)/3), `姿势相似度 ${m.score}%`, m.hint, m.short && m.pt ? {type:'pose', short:m.short, pt:m.pt} : null); else add('poseok', 8, 0, `姿势到位 ${m.score}%`, '可以拍了', null); }
     }
-  } else if(S.mode === 'portrait' && S.human){
-    add('noperson', 6, 0, '还没找到人物', '让人物完整进入画面，至少露出肩膀', null);
+    if(F.mean < 55) add('dark', 4, 10, '画面偏暗', '换到更亮的位置', null);
+    if(F.hi > 0.12) add('bright', 4, 10, '亮部过曝', '点一下人物的脸测光', null);
   }
-  if(F.mean < 55) add('dark', 4, 10, '画面偏暗', '换到更亮的位置，或拿稳手机开夜景模式', null);
-  if(F.hi > 0.12) add('bright', 4, 10, '亮部过曝', '点一下画面最亮的地方，降低曝光', null);
   out.sort((a, b) => a.pri - b.pri);
-  return {rules: out, score: Math.max(30, 100 - out.reduce((s, r) => s + r.pen, 0)), portrait, scene};
+  return {rules: out, score: Math.max(30, 100 - out.reduce((s, r) => s + r.pen, 0)), portrait: !!P, scene, sub};
 }
 
 /* ---------- drawing ---------- */
@@ -358,6 +564,32 @@ function drawOverlay(ctx, F, E, shown){
   ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   ctx.strokeStyle = 'rgba(255,255,255,.38)'; ctx.lineWidth = Math.max(1, lw/2);
   ctx.beginPath(); for(const f of [1/3, 2/3]){ ctx.moveTo(W*f, 0); ctx.lineTo(W*f, H); ctx.moveTo(0, H*f); ctx.lineTo(W, H*f); } ctx.stroke();
+  // scene guides
+  const sub = E.sub, dashT = [lw*3, lw*3];
+  ctx.save(); ctx.lineWidth = Math.max(1.5, lw*0.8);
+  if(sub === 'city'){
+    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.setLineDash(dashT);
+    ctx.beginPath(); ctx.moveTo(W*0.12, 0); ctx.lineTo(W*0.12, H); ctx.moveTo(W*0.88, 0); ctx.lineTo(W*0.88, H); ctx.stroke();
+    ctx.strokeStyle = C.target; ctx.globalAlpha = 0.7; ctx.beginPath(); ctx.moveTo(W/2, 0); ctx.lineTo(W/2, H); ctx.stroke(); ctx.globalAlpha = 1;
+  } else if(sub === 'half'){
+    ctx.strokeStyle = C.target; ctx.globalAlpha = 0.75; ctx.setLineDash(dashT); ctx.beginPath(); ctx.moveTo(0, H/3); ctx.lineTo(W, H/3); ctx.stroke(); ctx.globalAlpha = 1;
+  } else if(sub === 'full'){
+    ctx.strokeStyle = C.target; ctx.globalAlpha = 0.75; ctx.setLineDash(dashT); ctx.beginPath(); ctx.moveTo(0, H*0.95); ctx.lineTo(W, H*0.95); ctx.stroke(); ctx.globalAlpha = 1;
+  } else if(sub === 'travel'){
+    const bx = (F.person && F.person.cx > 0.5 ? 2/3 : 1/3)*W, bh = H/3, bw = bh*0.42;
+    ctx.strokeStyle = C.target; ctx.globalAlpha = 0.75; ctx.setLineDash(dashT); ctx.strokeRect(bx - bw/2, H*0.86 - bh, bw, bh); ctx.globalAlpha = 1;
+  } else if(sub === 'selfie'){
+    const rx = W*0.21, ry = rx*1.32;
+    ctx.strokeStyle = C.target; ctx.lineWidth = lw*1.4; ctx.setLineDash([lw*4, lw*3]); ctx.beginPath(); ctx.ellipse(W/2, H*0.38, rx, ry, 0, 0, Math.PI*2); ctx.stroke();
+  } else if(sub === 'macro'){
+    ctx.strokeStyle = 'rgba(255,255,255,.7)'; const m = Math.min(W, H)*0.04;
+    for(const fx of [1/3, 2/3]) for(const fy of [1/3, 2/3]){ const x = W*fx, y = H*fy; ctx.beginPath(); ctx.moveTo(x - m, y); ctx.lineTo(x + m, y); ctx.moveTo(x, y - m); ctx.lineTo(x, y + m); ctx.stroke(); }
+  } else if(sub === 'night' && F.shake != null){
+    const bw = W*0.4, bx = W*0.3, by = H*0.03, bh = Math.max(6, lw*2.5), v = 1 - Math.min(F.shake/15, 1);
+    ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = F.shake <= 6 ? '#7BD88F' : C.now; ctx.fillRect(bx, by, bw*v, bh);
+  }
+  ctx.restore();
   const P = E.portrait ? F.person : null;
   if(P){
     const g = P.g;
@@ -420,6 +652,40 @@ function drawOverlay(ctx, F, E, shown){
       const e1 = Math.PI*0.8, e2 = Math.PI*0.88;
       arrow(ctx, ax + R*Math.cos(e1), ay + R*Math.sin(e1), ax + R*Math.cos(e2), ay + R*Math.sin(e2), lw, C.target);
       pills.push(['一起转身 45°', ax, ay + R + lw*3, C.target, 'center']);
+    } else if(d.type === 'arrow2'){
+      const x = d.x*W, y = d.y*H, tx = d.tx*W, ty = d.ty*H, R = Math.min(W, H)*0.06;
+      ctx.strokeStyle = C.target; ctx.lineWidth = lw*1.8; ctx.beginPath(); ctx.arc(tx, ty, R, 0, Math.PI*2); ctx.stroke();
+      const a = Math.atan2(ty - y, tx - x);
+      arrow(ctx, x, y, tx - Math.cos(a)*R, ty - Math.sin(a)*R, lw, C.now);
+      pills.push([d.label, tx, ty + R + lw*3, C.target, 'center']);
+    } else if(d.type === 'guideH'){
+      const col = d.color === 'warn' ? C.warn : C.target;
+      ctx.strokeStyle = col; ctx.lineWidth = lw*1.8; ctx.beginPath(); ctx.moveTo(0, d.y*H); ctx.lineTo(W, d.y*H); ctx.stroke();
+      if(d.from != null) arrow(ctx, W*0.82, d.from*H, W*0.82, d.y*H, lw, C.now);
+      pills.push([d.label, lw*2, d.y*H + (d.y > 0.85 ? -ph - lw*3 : lw*3), col, 'left']);
+    } else if(d.type === 'keystone'){
+      const up = d.ks > 0, inset = W*0.08;
+      ctx.strokeStyle = C.now; ctx.lineWidth = lw*1.8; ctx.setLineDash([lw*3, lw*2.5]);
+      ctx.beginPath();
+      if(up){ ctx.moveTo(W*0.12, H*0.9); ctx.lineTo(W*0.12 + inset, H*0.1); ctx.moveTo(W*0.88, H*0.9); ctx.lineTo(W*0.88 - inset, H*0.1); }
+      else { ctx.moveTo(W*0.12 + inset, H*0.9); ctx.lineTo(W*0.12, H*0.1); ctx.moveTo(W*0.88 - inset, H*0.9); ctx.lineTo(W*0.88, H*0.1); }
+      ctx.stroke(); ctx.setLineDash([]);
+      pills.push([up ? '手机竖直，别仰拍' : '手机平视，别俯拍', W/2, H*0.12, C.now, 'center']);
+      pills.push(['竖线要和白线平行', W/2, H*0.2, C.target, 'center']);
+    } else if(d.type === 'sym'){
+      const cx = d.c*W;
+      ctx.strokeStyle = C.now; ctx.lineWidth = lw*1.8; ctx.setLineDash([lw*3, lw*2.5]); ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, H); ctx.stroke(); ctx.setLineDash([]);
+      arrow(ctx, cx, H*0.5, W/2 + Math.sign(cx - W/2)*lw*2, H*0.5, lw, C.now);
+      pills.push(['对准中轴线', W/2, H*0.56, C.target, 'center']);
+    } else if(d.type === 'topband'){
+      ctx.fillStyle = C.warn; ctx.globalAlpha = 0.55; ctx.fillRect(0, 0, W, Math.max(lw*3, H*0.02)); ctx.globalAlpha = 1;
+      pills.push(['楼顶被切了，后退几步', W/2, H*0.03, C.warn, 'center']);
+    } else if(d.type === 'sizebox'){
+      pills.push(['人这么大就好', (d.x > 0.5 ? 2/3 : 1/3)*W, H*0.86 + lw*3, C.target, 'center']);
+    } else if(d.type === 'oval'){
+      pills.push(['脸放进框里', W/2, H*0.38 + W*0.21*1.32 + lw*3, C.target, 'center']);
+    } else if(d.type === 'shakepill'){
+      pills.push(['拿稳，绿了再拍', W/2, H*0.03 + lw*5, C.now, 'center']);
     } else if(d.type === 'pose'){
       ctx.fillStyle = C.now; ctx.beginPath(); ctx.arc(d.pt[0], d.pt[1], lw*3, 0, Math.PI*2); ctx.fill();
       pills.push([d.short, d.pt[0] + lw*5, d.pt[1] - ph/2, C.now, 'left']);
@@ -451,6 +717,25 @@ const PIC = {
   bright: `<circle cx="28" cy="30" r="10" stroke="${PR}"/><path d="M28 12 V15 M28 45 V48 M10 30 H13 M43 30 H46 M15 17 L17 19 M41 17 L39 19 M15 43 L17 41 M41 43 L39 41" stroke="${PR}"/><path d="M54 18 V52" stroke="${PO}"/><path d="M49 47 L54 52 L59 47" stroke="${PO}"/>`,
   noperson: `<circle cx="32" cy="16" r="7" stroke="${PG}" stroke-dasharray="3 3"/><path d="M18 58 Q32 28 46 58" stroke="${PG}" stroke-dasharray="3 3"/>`,
   ok: `<circle cx="32" cy="32" r="22" stroke="${PT}"/><path d="M21 33 L29 41 L44 24" stroke="${PT}"/>`,
+  keystone: `<path d="M20 58 L26 8 H38 L44 58 Z" stroke="${PO}"/><path d="M14 58 V8 M50 58 V8" stroke="${PT}" stroke-dasharray="3 3"/><path d="M32 18 V30 M32 38 V50" stroke="${PG}"/>`,
+  sym: `<path d="M14 58 V28 L32 10 L50 28 V58" stroke="${PW}"/><path d="M38 4 V60" stroke="${PO}" stroke-dasharray="3 3"/><path d="M32 4 V60" stroke="${PT}"/><path d="M44 34 H35" stroke="${PO}"/><path d="M38 30 L34 34 L38 38" stroke="${PO}"/>`,
+  sunpos: `<rect x="6" y="8" width="52" height="40" rx="4" stroke="${PG}"/><line x1="23.3" y1="8" x2="23.3" y2="48" stroke="${PG}" stroke-width="1.2"/><line x1="40.7" y1="8" x2="40.7" y2="48" stroke="${PG}" stroke-width="1.2"/><line x1="6" y1="21.3" x2="58" y2="21.3" stroke="${PG}" stroke-width="1.2"/><circle cx="32" cy="30" r="5" stroke="${PO}"/><circle cx="40.7" cy="21.3" r="6" stroke="${PT}"/><path d="M34 54 H50" stroke="${PO}"/>`,
+  silhouette: `<circle cx="32" cy="24" r="14" stroke="${PO}"/><circle cx="32" cy="34" r="5" fill="${PW}" stroke="${PW}"/><path d="M22 58 Q32 40 42 58 Z" fill="${PW}" stroke="${PW}"/><line x1="4" y1="44" x2="60" y2="44" stroke="${PG}"/>`,
+  shake: `<rect x="22" y="10" width="20" height="40" rx="4" stroke="${PO}"/><path d="M12 20 Q8 30 12 40 M52 20 Q56 30 52 40" stroke="${PO}"/><rect x="14" y="56" width="36" height="4" rx="2" stroke="${PT}"/>`,
+  moon: `<path d="M40 10 A20 20 0 1 0 54 40 A16 16 0 0 1 40 10 Z" stroke="${PT}"/><path d="M14 52 h8 M18 48 v8" stroke="${PO}"/>`,
+  fore: `<line x1="4" y1="26" x2="60" y2="26" stroke="${PG}"/><path d="M8 56 Q14 42 22 46 Q28 40 34 50 L36 56 Z" stroke="${PT}"/><path d="M46 56 V40 M46 44 L41 39 M46 47 L51 42" stroke="${PT}"/>`,
+  top: `<rect x="18" y="4" width="28" height="56" stroke="${PW}"/><line x1="6" y1="12" x2="58" y2="12" stroke="${PR}" stroke-dasharray="4 3"/><path d="M24 22 h6 M34 22 h6 M24 32 h6 M34 32 h6" stroke="${PG}"/><path d="M52 52 V36" stroke="${PO}"/><path d="M48 48 L52 52 L56 48" stroke="${PO}"/>`,
+  clutter: `<path d="M6 10 L18 22 M14 6 L8 30 M46 6 L58 18 M50 30 L60 24 M6 50 L16 60 M48 60 L58 46" stroke="${PR}"/><circle cx="32" cy="32" r="9" stroke="${PT}"/><path d="M32 41 V56" stroke="${PT}"/>`,
+  macropos: `<rect x="6" y="8" width="52" height="40" rx="4" stroke="${PG}"/><line x1="23.3" y1="8" x2="23.3" y2="48" stroke="${PG}" stroke-width="1.2"/><line x1="6" y1="21.3" x2="58" y2="21.3" stroke="${PG}" stroke-width="1.2"/><circle cx="32" cy="30" r="4" stroke="${PO}"/><path d="M28 30 a4 4 0 0 1 -6 -4 M36 30 a4 4 0 0 0 6 -4" stroke="${PO}"/><circle cx="23.3" cy="21.3" r="6" stroke="${PT}"/>`,
+  eyes: `<circle cx="32" cy="30" r="14" stroke="${PW}"/><circle cx="26" cy="28" r="2" fill="${PW}" stroke="${PW}"/><circle cx="38" cy="28" r="2" fill="${PW}" stroke="${PW}"/><line x1="4" y1="20" x2="60" y2="20" stroke="${PT}" stroke-dasharray="4 3"/><path d="M52 40 V24" stroke="${PO}"/><path d="M48 28 L52 24 L56 28" stroke="${PO}"/>`,
+  elbow: `<circle cx="32" cy="12" r="7" stroke="${PW}"/><path d="M20 24 H44 M20 24 L14 44 M44 24 L50 44 M24 24 V58 M40 24 V58" stroke="${PW}"/><line x1="4" y1="44" x2="60" y2="44" stroke="${PR}" stroke-dasharray="4 3"/><line x1="4" y1="54" x2="60" y2="54" stroke="${PT}" stroke-dasharray="4 3"/>`,
+  turn: `<ellipse cx="32" cy="34" rx="22" ry="8" stroke="${PG}"/><path d="M20 34 L44 34" stroke="${PW}"/><path d="M24 26 L40 42" stroke="${PT}"/><path d="M50 22 A20 20 0 0 1 54 34" stroke="${PO}"/><path d="M50 32 L54 36 L57 31" stroke="${PO}"/>`,
+  toobig: `<rect x="6" y="6" width="52" height="52" rx="4" stroke="${PG}"/><circle cx="32" cy="22" r="8" stroke="${PW}"/><path d="M16 58 Q32 30 48 58" stroke="${PW}"/><path d="M10 10 L18 18 M54 10 L46 18 M10 54 L18 46 M54 54 L46 46" stroke="${PO}"/>`,
+  neck: `<circle cx="32" cy="18" r="8" stroke="${PW}"/><path d="M20 58 Q32 30 44 58" stroke="${PW}"/><line x1="4" y1="29" x2="60" y2="29" stroke="${PR}" stroke-dasharray="4 3"/><line x1="4" y1="44" x2="60" y2="44" stroke="${PT}" stroke-dasharray="4 3"/>`,
+  sitlevel: `<circle cx="42" cy="22" r="5" stroke="${PW}"/><path d="M42 27 V40 H54 V54 M42 40 L36 54" stroke="${PW}"/><rect x="8" y="16" width="6" height="14" rx="2" stroke="${PO}"/><path d="M14 22 H36" stroke="${PT}" stroke-dasharray="3 3"/><path d="M11 40 V52" stroke="${PO}"/><path d="M7 36 L11 32 L15 36" stroke="${PO}" transform="rotate(180 11 34)"/>`,
+  knees: `<circle cx="20" cy="14" r="5" stroke="${PW}"/><path d="M20 19 V36 L44 44 L56 58" stroke="${PW}"/><path d="M20 36 L40 54" stroke="${PT}" stroke-dasharray="3 3"/><path d="M48 30 A16 16 0 0 1 56 44" stroke="${PO}"/>`,
+  oval: `<ellipse cx="32" cy="28" rx="16" ry="21" stroke="${PT}" stroke-dasharray="4 3"/><circle cx="32" cy="28" r="9" stroke="${PW}"/><path d="M14 60 Q32 46 50 60" stroke="${PW}"/>`,
+  selfieAngle: `<circle cx="22" cy="40" r="7" stroke="${PW}"/><path d="M12 60 Q22 50 32 60" stroke="${PW}"/><rect x="40" y="8" width="8" height="16" rx="2" stroke="${PO}" transform="rotate(25 44 16)"/><path d="M40 22 L26 34" stroke="${PT}" stroke-dasharray="3 3"/>`,
 };
 function pictoFor(r){
   const d = r.draw || {};
@@ -469,6 +754,30 @@ function pictoFor(r){
     case 'dark': return svg64(PIC.dark);
     case 'bright': return svg64(PIC.bright);
     case 'noperson': return svg64(PIC.noperson);
+    case 'plainsky': return svg64(PIC.pitchDown);
+    case 'fore': return svg64(PIC.fore);
+    case 'keystone': return svg64(PIC.keystone);
+    case 'sym': return svg64(PIC.sym);
+    case 'top': return svg64(PIC.top);
+    case 'sunexp': case 'lights': return svg64(PIC.bright);
+    case 'sunhz': return svg64(PIC.pitchUp);
+    case 'sunpos': return svg64(PIC.sunpos);
+    case 'silhouette': return svg64(PIC.silhouette);
+    case 'shake': return svg64(PIC.shake);
+    case 'nightdark': case 'nightmode': return svg64(PIC.moon);
+    case 'clutter': return svg64(PIC.clutter);
+    case 'macropos': return svg64(PIC.macropos);
+    case 'closer': return svg64(PIC.closer);
+    case 'nofeet': return svg64(PIC.feet);
+    case 'eyes': return svg64(PIC.eyes);
+    case 'elbow': return svg64(PIC.elbow);
+    case 'turn': return svg64(PIC.turn);
+    case 'toobig': return svg64(PIC.toobig);
+    case 'neck': return svg64(PIC.neck);
+    case 'sitlevel': return svg64(PIC.sitlevel);
+    case 'knees': return svg64(PIC.knees);
+    case 'far': case 'near': case 'facepos': return svg64(PIC.oval);
+    case 'chin': return svg64(PIC.selfieAngle);
     default: return svg64(PIC.ok);
   }
 }
@@ -482,7 +791,7 @@ function renderHints(rules, score){
 /* ---------- still frame on the main stage (sample or last photo) ---------- */
 async function renderStill(){
   const c = S.still; if(!c) return;
-  const F = await analyze(c, c.width, c.height), E = evaluate(F);
+  const F = await analyze(c, c.width, c.height); applyRecommendation(F, false); const E = evaluate(F);
   view.width = c.width; view.height = c.height; vctx.drawImage(c, 0, 0); drawOverlay(vctx, F, E, E.rules);
   renderHints(E.rules, E.score);
   $('#tag').hidden = false; $('#tag').textContent = S.isSample ? '示例画面' : '上一张照片';
@@ -506,6 +815,8 @@ function drawSample(){
 
 /* ---------- live camera ---------- */
 function onMotion(e){
+  const r = e.rotationRate;
+  if(r && r.alpha != null){ const m = Math.hypot(r.alpha || 0, r.beta || 0, r.gamma || 0); S.shake = S.shake == null ? m : S.shake*0.85 + m*0.15; }
   const a = e.accelerationIncludingGravity; if(!a || a.x == null || a.y == null) return;
   const ang = Math.atan2(-a.x, a.y)*180/Math.PI, dev = ang - Math.round(ang/90)*90;
   S.sensor = S.sensor == null ? dev : S.sensor*0.8 + dev*0.2;
@@ -533,7 +844,7 @@ function loop(){
       if(work.width !== W || work.height !== H){ work.width = W; work.height = H; }
       wctx.drawImage(frame, 0, 0);
       analyze(work, W, H, true).then(F => {
-        const E = evaluate(F); S.lastF = F; S.lastE = E; S.shown = debounce(E.rules);
+        applyRecommendation(F, true); const E = evaluate(F); S.lastF = F; S.lastE = E; S.shown = debounce(E.rules);
         S.scoreS = S.scoreS == null ? E.score : Math.round(S.scoreS*0.7 + E.score*0.3);
         renderHints(S.shown, S.scoreS);
       }).catch(() => {}).finally(() => { S.busy = false; });
@@ -561,7 +872,7 @@ async function startLive(){
   }
 }
 function stopLive(){
-  S.live = false; window.removeEventListener('devicemotion', onMotion); S.sensor = null;
+  S.live = false; window.removeEventListener('devicemotion', onMotion); S.sensor = null; S.shake = null;
   closeCamera(); S.lastF = null;
   $('#btnLive').setAttribute('aria-pressed', 'false'); renderStill();
 }
@@ -575,6 +886,7 @@ let flipping = false;
 async function flipCamera(){
   if(flipping) return;
   const next = S.facing === 'user' ? 'environment' : 'user';
+  if(!S.subManual && S.mode !== 'scene'){ S.rec = next === 'user' ? 'selfie' : 'full'; setSub(S.rec, false); }
   if(!S.live){ S.facing = next; updateFacingUI(); toast(next === 'user' ? '已切到前置：点快门会打开自拍' : '已切到后置摄像头'); return; }
   flipping = true;
   const prev = S.facing;
@@ -662,7 +974,7 @@ async function showResult(c, opts = {}){
   S.current = {c, file: opts.file || null, saved: !!opts.fromAlbum};
   S.sheetOpen = true; $('#sheet').hidden = false; $('#sheet').scrollTop = 0;
   const body = $('#resBody'); body.innerHTML = '<p class="note">正在点评…</p>';
-  const F = await analyze(c, c.width, c.height), E = evaluate(F);
+  const F = await analyze(c, c.width, c.height); applyRecommendation(F, false); const E = evaluate(F);
   const o = document.createElement('canvas'); o.width = c.width; o.height = c.height;
   const og = o.getContext('2d'); og.drawImage(c, 0, 0); drawOverlay(og, F, E, E.rules);
   const crop = suggestCrop(c, F, E); let E2 = null;
@@ -698,7 +1010,12 @@ function closeSheet(){ S.sheetOpen = false; $('#sheet').hidden = true; if(!S.liv
 /* ---------- UI wiring ---------- */
 let toastTimer;
 function toast(msg){ const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 4200); }
-function setMode(m){ S.mode = m; document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === m ? 'true' : 'false')); S.active.clear(); if(!S.live) renderStill(); }
+function setMode(m){
+  S.mode = m; S.subManual = false;
+  document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === m ? 'true' : 'false'));
+  if(m !== 'auto' && SUBS[S.sub].kind !== m){ const first = m === 'portrait' && S.facing === 'user' ? 'selfie' : SUB_ORDER[m][0]; S.rec = first; setSub(first, false); }
+  S.active.clear(); if(!S.live) renderStill();
+}
 document.querySelector('.seg').addEventListener('click', e => { const b = e.target.closest('button'); if(b) setMode(b.dataset.mode); });
 $('#btnShutter').addEventListener('click', () => { if(S.live) showResult(grabFrame()); else $('#fileCam').click(); });
 $('#btnAlbum').addEventListener('click', () => $('#fileAlbum').click());
@@ -711,7 +1028,7 @@ $('#cfSave').addEventListener('click', () => { savePhoto(); hideConfirm(); const
 $('#cfDiscard').addEventListener('click', () => { if(S.current) S.current.saved = true; hideConfirm(); const n = pendingLeave; pendingLeave = null; if(n) n(); });
 $('#cfCancel').addEventListener('click', () => { pendingLeave = null; hideConfirm(); });
 
-buildPoseBar();
+initPoseBar(); initSceneBar(); renderSceneBar(); renderPoseBar();
 S.still = drawSample();
 renderStill();
 
