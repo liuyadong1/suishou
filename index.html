@@ -61,6 +61,12 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 .shutter{width:74px;height:74px;border-radius:50%;border:4px solid var(--fg);background:transparent;padding:4px}
 .shutter span{display:block;width:100%;height:100%;border-radius:50%;background:var(--fg);transition:transform .12s}
 .shutter:active span{transform:scale(.9)}
+.confirm{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.62);display:flex;align-items:flex-end;justify-content:center;padding-inline:16px;padding-block:16px calc(16px + env(safe-area-inset-bottom,0px))}
+.confirm-box{width:min(100%,480px);background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;display:grid;gap:8px}
+.confirm-box strong{font-size:17px}
+.confirm-box p{margin:0 0 8px;color:var(--muted);font-size:14px;line-height:1.6}
+.confirm-actions{display:grid;gap:8px}
+.confirm-actions .btn{width:100%}
 .toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 64px);transform:translateX(-50%);width:min(92vw,480px);background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.6;z-index:20}
 .sheet{position:fixed;inset:0;background:var(--bg);overflow-y:auto;z-index:10;padding-block:calc(env(safe-area-inset-top,0px) + 12px) calc(28px + env(safe-area-inset-bottom,0px));padding-inline:16px}
 .sheet-in{max-width:560px;margin:0 auto;display:grid;gap:16px}
@@ -88,7 +94,7 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 <body>
 <div id="app">
   <header class="top">
-    <div class="brand">随手大师<small>拍照教练 v0.2</small></div>
+    <div class="brand">随手大师<small>拍照教练 v0.2.1</small></div>
     <div class="seg" role="group" aria-label="拍摄模式">
       <button id="m-auto" data-mode="auto" aria-pressed="true">自动</button>
       <button id="m-scene" data-mode="scene" aria-pressed="false">风景</button>
@@ -123,6 +129,17 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
     <div id="resBody" class="sheet-in"></div>
   </div>
 </section>
+<div class="confirm" id="confirm" hidden role="dialog" aria-modal="true" aria-labelledby="cfTitle">
+  <div class="confirm-box">
+    <strong id="cfTitle">这张照片还没保存到相册</strong>
+    <p>离开后就找不回来了，要先保存吗？</p>
+    <div class="confirm-actions">
+      <button class="btn" id="cfSave">保存并离开</button>
+      <button class="btn ghost" id="cfDiscard">不保存，直接离开</button>
+      <button class="btn ghost" id="cfCancel">留在这里</button>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast" hidden></div>
 
 <script type="module">
@@ -575,15 +592,34 @@ function grabFrame(){ const c = document.createElement('canvas'); c.width = fram
 
 /* ---------- photo review ---------- */
 function loadImage(file){ return new Promise((res, rej) => { const u = URL.createObjectURL(file), im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = u; }); }
-async function handleFile(file){
+async function handleFile(file, fromAlbum){
   if(!file) return;
   try {
     const im = await loadImage(file), s = Math.min(1, 1600/Math.max(im.naturalWidth, im.naturalHeight));
     const c = document.createElement('canvas'); c.width = Math.round(im.naturalWidth*s); c.height = Math.round(im.naturalHeight*s);
     c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
-    await showResult(c);
+    await showResult(c, {file, fromAlbum});
   } catch(e){ toast('这张图片打不开，换一张试试'); }
 }
+
+/* ---------- saving to the phone ---------- */
+function stamp(){ const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`; }
+function downloadURL(url, name){ const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); }
+function savePhoto(){
+  const cur = S.current; if(!cur) return;
+  const name = `随手大师_${stamp()}.jpg`;
+  if(cur.file){ const u = URL.createObjectURL(cur.file); downloadURL(u, name); setTimeout(() => URL.revokeObjectURL(u), 10000); }
+  else downloadURL(cur.c.toDataURL('image/jpeg', 0.95), name);
+  cur.saved = true;
+  const b = $('#savePhoto'); if(b){ b.textContent = '已保存到相册'; b.classList.add('ghost'); }
+  toast('照片已保存到手机「下载」文件夹，打开相册就能看到');
+}
+let pendingLeave = null;
+function requestLeave(next){
+  if(!S.current || S.current.saved){ next(); return; }
+  pendingLeave = next; $('#confirm').hidden = false;
+}
+function hideConfirm(){ $('#confirm').hidden = true; }
 function suggestCrop(c, F, E){
   const W = c.width, H = c.height, tilt = E.rules.find(r => r.id === 'tilt');
   const ang = tilt && tilt.draw.src === 'horizon' ? F.horizon.angle : 0, rad = -ang*Math.PI/180;
@@ -618,8 +654,12 @@ function makeCard(a, b, s1, s2, la, lb){
   g.font = `400 26px ${FONT}`; g.fillStyle = '#95A29F'; g.fillText('随手大师 · 拍照教练', pad, H - 36);
   return c.toDataURL('image/jpeg', 0.9);
 }
-function showCard(url){ $('#cardOut').innerHTML = `<img src="${url}" alt="对比分享卡"><p class="note">长按图片保存，发朋友圈或小红书。</p>`; }
-async function showResult(c){
+function showCard(url){
+  $('#cardOut').innerHTML = `<img src="${url}" alt="对比分享卡"><div class="row"><button class="btn ghost" id="saveCard">保存对比卡</button></div><p class="note">保存后可以发朋友圈或小红书，也可以长按图片保存。</p>`;
+  $('#saveCard').onclick = () => { downloadURL(url, `随手大师_对比卡_${stamp()}.jpg`); toast('对比卡已保存到手机「下载」文件夹'); };
+}
+async function showResult(c, opts = {}){
+  S.current = {c, file: opts.file || null, saved: !!opts.fromAlbum};
   S.sheetOpen = true; $('#sheet').hidden = false; $('#sheet').scrollTop = 0;
   const body = $('#resBody'); body.innerHTML = '<p class="note">正在点评…</p>';
   const F = await analyze(c, c.width, c.height), E = evaluate(F);
@@ -631,20 +671,26 @@ async function showResult(c){
   body.innerHTML = `
     <div class="res-score"><b>${E.score}</b><span>构图分</span></div>
     <div id="resImg"></div>
+    <div class="row">${S.current.saved ? '<button class="btn ghost" id="savePhoto">这张来自相册，已保存</button>' : '<button class="btn" id="savePhoto">保存到相册</button>'}</div>
     <h3>怎么改</h3>
     <div class="list">${E.rules.length ? E.rules.map(hintHTML).join('') : OK_HINT}</div>
     ${crop ? `<h3>建议构图</h3><p class="note">自动摆正并按三分线裁剪后的效果，下一张照着这个拍。</p>
       <div class="compare"><figure><img id="imgOrig" alt="原图"><figcaption>原图<b>${E.score}</b></figcaption></figure><figure><img id="imgCrop" alt="建议构图"><figcaption>建议<b>${E2.score}</b></figcaption></figure></div>` : ''}
     <div class="row">
-      ${crop ? '<button class="btn ghost" id="mkCrop">生成建议对比卡</button>' : ''}
+      ${crop ? '<button class="btn ghost" id="saveCrop">保存建议构图</button><button class="btn ghost" id="mkCrop">生成建议对比卡</button>' : ''}
       ${prev ? '<button class="btn ghost" id="mkPrev">和上一张做对比卡</button>' : ''}
     </div>
     <div id="cardOut"></div>
-    <button class="btn" id="again">按提示再拍一张</button>`;
+    <button class="btn ghost" id="again">按提示再拍一张</button>`;
   $('#resImg').appendChild(o);
-  if(crop){ $('#imgOrig').src = c.toDataURL('image/jpeg', 0.85); $('#imgCrop').src = crop.toDataURL('image/jpeg', 0.85); $('#mkCrop').onclick = () => showCard(makeCard(c, crop, E.score, E2.score, '原图', '建议构图')); }
+  if(!S.current.saved) $('#savePhoto').onclick = savePhoto;
+  if(crop){
+    $('#imgOrig').src = c.toDataURL('image/jpeg', 0.85); $('#imgCrop').src = crop.toDataURL('image/jpeg', 0.85);
+    $('#mkCrop').onclick = () => showCard(makeCard(c, crop, E.score, E2.score, '原图', '建议构图'));
+    $('#saveCrop').onclick = () => { downloadURL(crop.toDataURL('image/jpeg', 0.95), `随手大师_建议构图_${stamp()}.jpg`); toast('建议构图已保存到手机「下载」文件夹'); };
+  }
   if(prev) $('#mkPrev').onclick = () => showCard(makeCard(prev.c, c, prev.score, E.score, '调整前', '调整后'));
-  $('#again').onclick = () => { closeSheet(); if(!S.live) $('#fileCam').click(); };
+  $('#again').onclick = () => requestLeave(() => { closeSheet(); if(!S.live) $('#fileCam').click(); });
   S.prev = {c, score: E.score}; S.still = c; S.isSample = false;
 }
 function closeSheet(){ S.sheetOpen = false; $('#sheet').hidden = true; if(!S.live) renderStill(); }
@@ -658,9 +704,12 @@ $('#btnShutter').addEventListener('click', () => { if(S.live) showResult(grabFra
 $('#btnAlbum').addEventListener('click', () => $('#fileAlbum').click());
 $('#btnLive').addEventListener('click', () => { if(S.live) stopLive(); else startLive(); });
 $('#btnFlip').addEventListener('click', flipCamera);
-$('#fileCam').addEventListener('change', e => { handleFile(e.target.files[0]); e.target.value = ''; });
-$('#fileAlbum').addEventListener('change', e => { handleFile(e.target.files[0]); e.target.value = ''; });
-$('#closeSheet').addEventListener('click', closeSheet);
+$('#fileCam').addEventListener('change', e => { handleFile(e.target.files[0], false); e.target.value = ''; });
+$('#fileAlbum').addEventListener('change', e => { handleFile(e.target.files[0], true); e.target.value = ''; });
+$('#closeSheet').addEventListener('click', () => requestLeave(closeSheet));
+$('#cfSave').addEventListener('click', () => { savePhoto(); hideConfirm(); const n = pendingLeave; pendingLeave = null; if(n) n(); });
+$('#cfDiscard').addEventListener('click', () => { if(S.current) S.current.saved = true; hideConfirm(); const n = pendingLeave; pendingLeave = null; if(n) n(); });
+$('#cfCancel').addEventListener('click', () => { pendingLeave = null; hideConfirm(); });
 
 buildPoseBar();
 S.still = drawSample();
