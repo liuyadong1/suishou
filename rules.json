@@ -1,6 +1,6 @@
 {
   "name": "随手大师摄影规则库",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "updated": "2026-10-10",
   "note": "每条规则：subs 适用场景；when 触发条件（画面特征表达式）；pri 优先级（越小越先显示）；pen 构图分扣分；title/text 提示文案，花括号里是表达式；picto 示意图；draw 取景画面标注；principle 摄影原理；source 知识出处类别。kind=tip 的是场景技巧，画面没有问题时轮播显示。",
   "rules": [
@@ -21,7 +21,7 @@
 
     {"id":"N-shake","subs":["night"],"when":"has_shake && shake > 6","pri":1,"pen":12,"title":"手机在抖","text":"双手拿稳，或靠在栏杆、墙上，稳定条变绿再拍","picto":"shake","draw":{"type":"shakepill"},"principle":"夜里光线少，手机会自动延长曝光时间，一点点抖动就会让照片发糊。","source":"夜景 · 稳定"},
     {"id":"N-lights","subs":["night"],"when":"hi > 0.06","pri":3,"pen":8,"title":"灯光过曝","text":"点一下最亮的灯，降低曝光","picto":"bright","principle":"灯光一旦过曝就变成一片白，失去颜色和形状。","source":"曝光 · 高光优先"},
-    {"id":"N-dark","subs":["night"],"when":"mean < 40","pri":4,"pen":6,"title":"画面很暗","text":"打开手机自带的夜景模式，效果更好","picto":"moon","principle":"手机夜景模式会连拍多张合成，比单张更亮更干净。","source":"夜景 · 手机算法"},
+    {"id":"N-dark","subs":["night"],"when":"mean < 40","pri":4,"pen":6,"title":"画面很暗","text":"打开「夜景合成」，按快门后保持 2 秒不动，会自动连拍提亮","picto":"moon","principle":"多帧合成：连拍多张对齐后叠加平均，噪点随帧数增加而减少，暗部可以安全提亮。","source":"夜景 · 多帧降噪"},
 
     {"id":"M-clutter","subs":["macro"],"when":"border_sharp > center_sharp*0.9 && border_sharp > 8","pri":2,"pen":12,"title":"背景太乱","text":"换个角度，或蹲下来对着天空拍，背景更干净","picto":"clutter","principle":"特写的秘诀是做减法：背景越简单，主体越突出。","source":"静物 · 简洁背景"},
     {"id":"M-pos","subs":["macro"],"when":"spread < 0.22 && abs(sharp_x - 0.5) < 0.08 && abs(sharp_y - 0.5) < 0.08","pri":3,"pen":8,"title":"主体在正中间","text":"移动手机，把主体放到三分线交点","picto":"macropos","draw":{"type":"arrow2","x":"sharp_x","y":"sharp_y","tx":"sharp_tx","ty":"sharp_ty","label":"主体放这里"},"principle":"主体偏离中心一点，留出的空白会让画面更有呼吸感。","source":"构图基础 · 三分法"},
@@ -70,6 +70,7 @@
     {"id":"tip-night-2","kind":"tip","subs":["night"],"title":"夜景小技巧","text":"雨后的地面有倒影，蹲低拍，灯光翻倍","principle":"倒影让画面上下呼应，也增加了光点。","source":"夜景 · 倒影"},
     {"id":"tip-night-3","kind":"tip","subs":["night"],"title":"夜景小技巧","text":"别让路灯直射镜头，容易出现光斑和眩光","principle":"强光直射镜头会在玻璃之间反射，形成鬼影。","source":"夜景 · 眩光"},
     {"id":"tip-night-4","kind":"tip","subs":["night"],"title":"夜景小技巧","text":"擦一下镜头再拍，指纹会让灯光糊成一团","principle":"镜头上的油污会把点光源散射成一片雾。","source":"器材 · 清洁"},
+    {"id":"tip-night-5","kind":"tip","subs":["night"],"title":"夜景小技巧","text":"想要最好的效果，用小米相机的「夜景」模式拍，再点「相册」导入，这里帮你点评构图","principle":"系统相机的夜景模式能直接控制传感器长曝光，画质比网页能拿到的视频画面更好。","source":"夜景 · 系统相机"},
     {"id":"tip-macro-1","kind":"tip","subs":["macro"],"title":"特写小技巧","text":"逆着光拍花瓣和树叶，会更通透、更亮","principle":"薄的花瓣在逆光下透光，颜色和纹理都更明显。","source":"静物 · 逆光"},
     {"id":"tip-macro-2","kind":"tip","subs":["macro"],"title":"特写小技巧","text":"蹲下来，和花保持同一高度拍","principle":"平视角度更有代入感，也更容易得到干净的背景。","source":"静物 · 视角"},
     {"id":"tip-macro-3","kind":"tip","subs":["macro"],"title":"特写小技巧","text":"点一下屏幕上的花对焦，再拍","principle":"近距离拍摄景深很浅，对焦点稍偏就会糊。","source":"静物 · 对焦"},

@@ -36,6 +36,13 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 .flip svg{width:20px;height:20px;fill:none;stroke:var(--fg);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .flip[aria-pressed="true"]{background:var(--target);color:var(--bg)}
 .flip[aria-pressed="true"] svg{stroke:var(--bg)}
+.nighttools{position:absolute;top:58px;left:12px;display:grid;gap:6px;justify-items:start}
+.pill-btn{border:1px solid var(--line);background:var(--glass);color:var(--fg);border-radius:999px;padding:6px 12px;font-size:12px}
+.pill-btn[aria-pressed="true"]{border-color:var(--target);color:var(--target)}
+.nightov{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:14px;background:rgba(0,0,0,.45);text-align:center;padding:24px}
+.nightov strong{font-size:18px}
+.nightbar{width:min(70vw,260px);height:6px;border-radius:3px;background:rgba(255,255,255,.2);overflow:hidden}
+.nightbar span{display:block;height:100%;width:0;background:var(--target);transition:width .2s}
 .tag{position:absolute;top:58px;right:12px;font-size:12px;background:var(--glass);padding:5px 10px;border-radius:999px;color:var(--muted)}
 .hints{position:absolute;left:12px;right:12px;bottom:12px;display:grid;gap:8px}
 .hint{background:var(--glass);border-radius:14px;padding:10px 12px 10px 10px;display:grid;grid-template-columns:52px minmax(0,1fr);column-gap:12px;row-gap:2px;align-items:center}
@@ -109,7 +116,7 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 <body>
 <div id="app">
   <header class="top">
-    <div class="brand">随手大师<small>拍照教练 v0.4</small></div>
+    <div class="brand">随手大师<small>拍照教练 v0.5</small></div>
     <div class="seg" role="group" aria-label="拍摄模式">
       <button id="m-auto" data-mode="auto" aria-pressed="true">自动</button>
       <button id="m-scene" data-mode="scene" aria-pressed="false">风景</button>
@@ -123,6 +130,11 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
     <canvas id="view" width="900" height="1200" aria-label="取景画面与构图提示"></canvas>
     <div class="score"><b id="scoreVal">--</b><span>构图分</span></div>
     <div class="tag" id="tag">示例画面</div>
+    <div class="nighttools" id="nightTools" hidden>
+      <button class="pill-btn" id="btnNight" aria-pressed="true">夜景合成：开</button>
+      <button class="pill-btn" id="btnSys">系统相机拍</button>
+    </div>
+    <div class="nightov" id="nightOv" hidden role="status" aria-live="polite"><strong id="nightText">保持不动</strong><div class="nightbar"><span id="nightBar"></span></div></div>
     <button class="flip" id="btnFlip" aria-pressed="false" aria-label="切换前后摄像头"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8a2 2 0 0 1 2-2h2l2-2h4l2 2h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M9 12.5a3 3 0 0 1 5.2-2"/><path d="M15 11.5a3 3 0 0 1-5.2 2"/><path d="M14.2 8.6v1.9h-1.9"/><path d="M9.8 15.4v-1.9h1.9"/></svg><span id="flipLabel">后置</span></button>
     <div class="hints" id="hints" aria-live="polite"></div>
   </main>
@@ -166,7 +178,7 @@ const view = $('#view'), vctx = view.getContext('2d');
 const css = getComputedStyle(document.documentElement);
 const C = { target: css.getPropertyValue('--target').trim(), now: css.getPropertyValue('--now').trim(), warn: css.getPropertyValue('--warn').trim() };
 const FONT = '"PingFang SC","MiSans","Noto Sans SC",sans-serif';
-const S = { mode:'auto', pose:'none', live:false, human:null, video:null, stream:null, sensor:null, busy:false, lastRun:0, lastF:null, lastE:null, shown:[], active:new Map(), still:null, isSample:true, prev:null, sheetOpen:false, scoreS:null, facing:'environment', sub:'vista', subManual:false, rec:'vista', recCand:null, recSince:0, shake:null };
+const S = { mode:'auto', pose:'none', live:false, human:null, video:null, stream:null, sensor:null, busy:false, lastRun:0, lastF:null, lastE:null, shown:[], active:new Map(), still:null, isSample:true, prev:null, sheetOpen:false, scoreS:null, facing:'environment', sub:'vista', subManual:false, rec:'vista', recCand:null, recSince:0, shake:null, nightOn:true, nightBusy:false, expComp:null };
 const SUBS = {
   vista:{kind:'scene', name:'山海远景'}, city:{kind:'scene', name:'城市建筑'}, sunset:{kind:'scene', name:'日出日落'}, night:{kind:'scene', name:'夜景灯光'}, macro:{kind:'scene', name:'花草特写'},
   full:{kind:'portrait', name:'全身照'}, half:{kind:'portrait', name:'半身照'}, travel:{kind:'portrait', name:'人景打卡'}, sit:{kind:'portrait', name:'坐姿'}, selfie:{kind:'portrait', name:'自拍'},
@@ -222,7 +234,7 @@ function setSub(id, manual){
   if(!SUBS[id]) return;
   const changed = S.sub !== id;
   S.sub = id; if(manual) S.subManual = true;
-  renderSceneBar();
+  renderSceneBar(); updateNightUI();
   if(changed){ renderPoseBar(); S.active.clear(); }
 }
 function initSceneBar(){
@@ -748,7 +760,7 @@ function loop(){
     fctx.setTransform(front ? -1 : 1, 0, 0, 1, front ? W : 0, 0); fctx.drawImage(v, 0, 0, W, H); fctx.setTransform(1, 0, 0, 1, 0, 0);
     vctx.drawImage(frame, 0, 0);
     if(S.lastF) drawOverlay(vctx, S.lastF, S.lastE, S.shown);
-    if(!S.busy && performance.now() - S.lastRun > 90){
+    if(!S.busy && !S.nightBusy && performance.now() - S.lastRun > 90){
       S.busy = true; S.lastRun = performance.now();
       if(work.width !== W || work.height !== H){ work.width = W; work.height = H; }
       wctx.drawImage(frame, 0, 0);
@@ -763,16 +775,17 @@ function loop(){
 }
 async function openCamera(facing){
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('no camera api');
-  const st = await navigator.mediaDevices.getUserMedia({video: {facingMode: {ideal: facing}, width: {ideal: 1280}, height: {ideal: 720}}, audio: false});
+  const st = await navigator.mediaDevices.getUserMedia({video: {facingMode: {ideal: facing}, width: {ideal: 1920}, height: {ideal: 1080}}, audio: false});
   const v = document.createElement('video'); v.playsInline = true; v.muted = true; v.srcObject = st; await v.play();
   return {st, v};
 }
-function closeCamera(){ if(S.stream) S.stream.getTracks().forEach(t => t.stop()); S.stream = null; S.video = null; }
+function closeCamera(){ S.expComp = null; if(S.stream) S.stream.getTracks().forEach(t => t.stop()); S.stream = null; S.video = null; }
 async function startLive(){
   try {
     const {st, v} = await openCamera(S.facing);
     S.stream = st; S.video = v; S.live = true; S.active.clear(); S.scoreS = null; S.lastF = null;
     window.addEventListener('devicemotion', onMotion);
+    updateNightUI();
     $('#btnLive').setAttribute('aria-pressed', 'true'); $('#tag').hidden = true;
     toast('实时取景已开启，按提示调整，提示变少就可以拍了');
     loop();
@@ -810,6 +823,121 @@ async function flipCamera(){
   updateFacingUI(); flipping = false;
 }
 function grabFrame(){ const c = document.createElement('canvas'); c.width = frame.width; c.height = frame.height; c.getContext('2d').drawImage(frame, 0, 0); return c; }
+
+/* ---------- night mode: wait until steady, burst 12 frames, align, stack, tone-map ---------- */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function nextVideoFrame(v){ return new Promise(r => { if(v.requestVideoFrameCallback) v.requestVideoFrameCallback(() => r()); else setTimeout(r, 40); }); }
+function setNightOv(text, p){
+  const ov = $('#nightOv'); ov.hidden = false; $('#nightText').textContent = text;
+  $('#nightBar').style.width = Math.round(Math.max(0, Math.min(1, p))*100) + '%';
+}
+function hideNightOv(){ $('#nightOv').hidden = true; }
+function grabVideoTo(ctx, v, W, H){
+  const front = S.facing === 'user';
+  ctx.setTransform(front ? -1 : 1, 0, 0, 1, front ? W : 0, 0); ctx.drawImage(v, 0, 0, W, H); ctx.setTransform(1, 0, 0, 1, 0, 0);
+}
+function smallGray(src, sw, sh, sctx2){
+  sctx2.drawImage(src, 0, 0, sw, sh);
+  const d = sctx2.getImageData(0, 0, sw, sh).data, g = new Uint8Array(sw*sh);
+  for(let i = 0, j = 0; i < g.length; i++, j += 4) g[i] = (d[j]*77 + d[j+1]*150 + d[j+2]*29) >> 8;
+  return g;
+}
+function findShift(ref, cur, sw, sh, R){
+  let best = Infinity, bx = 0, by = 0; const m = R + 2;
+  for(let dy = -R; dy <= R; dy++){
+    for(let dx = -R; dx <= R; dx++){
+      let sad = 0;
+      for(let y = m; y < sh - m; y += 3){
+        const ry = y*sw, cy = (y + dy)*sw + dx;
+        for(let x = m; x < sw - m; x += 3) sad += Math.abs(ref[ry + x] - cur[cy + x]);
+        if(sad >= best) break;
+      }
+      if(sad < best){ best = sad; bx = dx; by = dy; }
+    }
+  }
+  return [bx, by];
+}
+function toneMap(acc, cnt, W, H, ctx){
+  const n = W*H, out = ctx.createImageData(W, H), o = out.data, hist = new Uint32Array(256), lum = new Float32Array(n);
+  for(let i = 0, j = 0; i < n; i++, j += 3){
+    const c = cnt[i] || 1, r = acc[j]/c, g = acc[j+1]/c, b = acc[j+2]/c, l = 0.299*r + 0.587*g + 0.114*b;
+    lum[i] = l; hist[Math.min(255, l|0)]++;
+  }
+  const pct = q => { let s = 0, t = n*q; for(let k = 0; k < 256; k++){ s += hist[k]; if(s >= t) return k; } return 255; };
+  const p50 = Math.max(1, pct(0.5)), p995 = Math.max(1, pct(0.995)), p01 = pct(0.01);
+  const gain = Math.min(6, Math.max(1, 0.36*255/p50));
+  const white = Math.max(1, p995*gain/255);
+  for(let i = 0, j = 0, k = 0; i < n; i++, j += 3, k += 4){
+    const c = cnt[i] || 1, l = Math.max(0, lum[i] - p01*0.6);
+    const x = l*gain/255, y = x*(1 + x/(white*white))/(1 + x);
+    const scale = l > 0.5 ? (y*255)/lum[i] : gain;
+    for(let ch = 0; ch < 3; ch++){
+      const v = acc[j+ch]/c*scale, sat = v*1.0 + (v - y*255)*0.15;
+      o[k+ch] = sat < 0 ? 0 : sat > 255 ? 255 : sat;
+    }
+    o[k+3] = 255;
+  }
+  return out;
+}
+async function nightCapture(){
+  if(S.nightBusy || !S.video) return;
+  S.nightBusy = true;
+  const v = S.video, W = v.videoWidth, H = v.videoHeight;
+  try {
+    const t0 = performance.now();
+    while(S.shake != null && S.shake > 5 && performance.now() - t0 < 3000){ setNightOv('请拿稳手机，或靠在栏杆、墙上', 0); await sleep(100); }
+    const N = 12, k = 4, sw = Math.max(32, Math.floor(W/k)), sh = Math.max(32, Math.floor(H/k)), R = 8;
+    const fc = document.createElement('canvas'); fc.width = W; fc.height = H; const fx = fc.getContext('2d', {willReadFrequently: true});
+    const gc = document.createElement('canvas'); gc.width = sw; gc.height = sh; const gx = gc.getContext('2d', {willReadFrequently: true});
+    const acc = new Uint16Array(W*H*3), cnt = new Uint8Array(W*H);
+    let ref = null, single = null;
+    for(let f = 0; f < N; f++){
+      setNightOv(`保持不动… ${f + 1}/${N}`, f/N*0.7);
+      await nextVideoFrame(v); await nextVideoFrame(v);
+      grabVideoTo(fx, v, W, H);
+      const g = smallGray(fc, sw, sh, gx);
+      let ox = 0, oy = 0;
+      if(!ref){ ref = g; single = document.createElement('canvas'); single.width = W; single.height = H; single.getContext('2d').drawImage(fc, 0, 0); }
+      else { const [dx, dy] = findShift(ref, g, sw, sh, R); ox = dx*k; oy = dy*k; }
+      const d = fx.getImageData(0, 0, W, H).data;
+      for(let y = 0; y < H; y++){
+        const sy = y + oy; if(sy < 0 || sy >= H) continue;
+        let i = y*W, si = sy*W;
+        for(let x = 0; x < W; x++, i++){
+          const sx = x + ox; if(sx < 0 || sx >= W) continue;
+          const s4 = (si + sx)*4, a3 = i*3;
+          acc[a3] += d[s4]; acc[a3+1] += d[s4+1]; acc[a3+2] += d[s4+2]; cnt[i]++;
+        }
+      }
+    }
+    setNightOv('正在合成夜景…', 0.85); await sleep(30);
+    const out = document.createElement('canvas'); out.width = W; out.height = H; const octx = out.getContext('2d');
+    octx.putImageData(toneMap(acc, cnt, W, H, octx), 0, 0);
+    hideNightOv();
+    await showResult(out, {single});
+  } catch(e){
+    hideNightOv(); toast('夜景合成失败：' + e.message);
+  } finally { S.nightBusy = false; }
+}
+function nightActive(){ return S.live && S.sub === 'night' && S.nightOn; }
+function updateNightUI(){
+  const show = S.sub === 'night';
+  $('#nightTools').hidden = !show;
+  $('#btnNight').setAttribute('aria-pressed', S.nightOn ? 'true' : 'false');
+  $('#btnNight').textContent = S.nightOn ? '夜景合成：开' : '夜景合成：关';
+  if(S.stream){
+    const tr = S.stream.getVideoTracks()[0], caps = tr && tr.getCapabilities ? tr.getCapabilities() : {};
+    if(caps.exposureCompensation){
+      const want = show ? Math.min(caps.exposureCompensation.max, 1) : 0;
+      if(S.expComp !== want){ S.expComp = want; tr.applyConstraints({advanced: [{exposureCompensation: want}]}).catch(() => {}); }
+    }
+  }
+}
+function useSystemCamera(){
+  if(S.live) stopLive();
+  toast('正在打开系统相机。拍完会自动回来点评；想用小米相机的「夜景」模式，可以先在相机里拍好，再点「相册」导入。');
+  $('#fileCam').click();
+}
 
 /* ---------- photo review ---------- */
 function loadImage(file){ return new Promise((res, rej) => { const u = URL.createObjectURL(file), im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = u; }); }
@@ -923,6 +1051,7 @@ async function showResult(c, opts = {}){
     <h3>怎么改</h3>
     <div class="list">${E.display.length ? E.display.map(hintFbHTML).join('') : OK_HINT}</div>
     ${debugHTML(E)}
+    ${opts.single ? `<h3>夜景合成效果</h3><p class="note">连拍 12 帧对齐叠加，噪点更少、暗部更亮。</p><div class="compare"><figure><img id="imgSingle" alt="单帧"><figcaption>单帧</figcaption></figure><figure><img id="imgNight" alt="夜景合成"><figcaption>夜景合成</figcaption></figure></div>` : ''}
     ${crop ? `<h3>建议构图</h3><p class="note">自动摆正并按三分线裁剪后的效果，下一张照着这个拍。</p>
       <div class="compare"><figure><img id="imgOrig" alt="原图"><figcaption>原图<b>${E.score}</b></figcaption></figure><figure><img id="imgCrop" alt="建议构图"><figcaption>建议<b>${E2.score}</b></figcaption></figure></div>` : ''}
     <div class="row">
@@ -938,6 +1067,7 @@ async function showResult(c, opts = {}){
     toast(b.dataset.fb === 'up' ? '已记录：这条提示有用' : '已记录：这条提示不准，我们会调整');
   });
   if(!S.current.saved) $('#savePhoto').onclick = savePhoto;
+  if(opts.single){ $('#imgSingle').src = opts.single.toDataURL('image/jpeg', 0.85); $('#imgNight').src = c.toDataURL('image/jpeg', 0.85); }
   if(crop){
     $('#imgOrig').src = c.toDataURL('image/jpeg', 0.85); $('#imgCrop').src = crop.toDataURL('image/jpeg', 0.85);
     $('#mkCrop').onclick = () => showCard(makeCard(c, crop, E.score, E2.score, '原图', '建议构图'));
@@ -959,7 +1089,9 @@ function setMode(m){
   S.active.clear(); if(!S.live) renderStill();
 }
 document.querySelector('.seg').addEventListener('click', e => { const b = e.target.closest('button'); if(b) setMode(b.dataset.mode); });
-$('#btnShutter').addEventListener('click', () => { if(S.live) showResult(grabFrame()); else $('#fileCam').click(); });
+$('#btnShutter').addEventListener('click', () => { if(S.nightBusy) return; if(nightActive()) nightCapture(); else if(S.live) showResult(grabFrame()); else $('#fileCam').click(); });
+$('#btnNight').addEventListener('click', () => { S.nightOn = !S.nightOn; updateNightUI(); toast(S.nightOn ? '夜景合成已开启：按快门后保持 2 秒不动' : '夜景合成已关闭'); });
+$('#btnSys').addEventListener('click', useSystemCamera);
 $('#btnAlbum').addEventListener('click', () => $('#fileAlbum').click());
 $('#btnLive').addEventListener('click', () => { if(S.live) stopLive(); else startLive(); });
 $('#btnFlip').addEventListener('click', flipCamera);
