@@ -1,0 +1,1208 @@
+{
+ "name": "随手大师场景补充规则与技巧",
+ "version": "ss-2.1",
+ "note": "SS- 开头的是针对 10 类细分场景的补充规则（subs 指细分场景，when 为表达式，draw 为画面标注）；tips 为画面无问题时轮播的技巧。由 tools/build_rules.py 与 knowledge/photo_rules.json 合并成 rules.json。",
+ "rules": [
+  {
+   "id": "SS-level",
+   "subs": [
+    "vista",
+    "city",
+    "sunset",
+    "night",
+    "full",
+    "half",
+    "travel",
+    "sit"
+   ],
+   "when": "has_tilt && tilt_abs >= 1.5 && tilt_abs < 10 && (!has_hz || ['half','sit'].includes(sub))",
+   "priority": 3,
+   "confidence": "high",
+   "tip": "{tilt > 0 ? '手机右侧抬高一点' : '手机左侧抬高一点'}，摆正再拍",
+   "problem": "画面歪了 {tilt_abs}°",
+   "picto": "tilt",
+   "flip": "tilt < 0",
+   "draw": {
+    "type": "tilt",
+    "theta": "tilt",
+    "src": "tilt_src"
+   },
+   "principle": "地平线或建筑线一歪，整张照片就显得不稳。",
+   "note": "主库 COMP-001 在检测到地平线时负责提示；本条补充没有地平线的画面，以及主库未覆盖的半身照、坐姿。",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-fore",
+   "subs": [
+    "vista"
+   ],
+   "when": "has_hz && low_edge < 0.04 && low_sd < 12",
+   "priority": 4,
+   "confidence": "medium",
+   "tip": "画面下方放点石头、花草做前景",
+   "problem": "前景有点空，画面缺少层次",
+   "picto": "fore",
+   "principle": "前景、中景、远景三层叠在一起，照片才有纵深感。",
+   "note": "主库 COMP-024 需要深度信息；本条用画面下部纹理近似判断。",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-top",
+   "subs": [
+    "city"
+   ],
+   "when": "top_edge > 0.15 && vdens > 0.04",
+   "priority": 4,
+   "confidence": "medium",
+   "tip": "后退几步，把楼顶拍全",
+   "problem": "楼顶可能被切掉了",
+   "picto": "top",
+   "draw": {
+    "type": "topband"
+   },
+   "principle": "建筑顶部往往最有特点，切掉会显得不完整。",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-sunexp",
+   "subs": [
+    "sunset"
+   ],
+   "when": "hi > 0.04",
+   "priority": 2,
+   "confidence": "high",
+   "tip": "点一下最亮处，降低曝光",
+   "problem": "天空过曝，晚霞颜色会丢",
+   "picto": "bright",
+   "principle": "日落时按亮部测光，天空的颜色才保得住。",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-sunhz",
+   "subs": [
+    "sunset"
+   ],
+   "when": "has_hz && hz_y < 0.58",
+   "priority": 3,
+   "confidence": "high",
+   "tip": "手机往上仰，天空占三分之二",
+   "problem": "日落的天空留得不够",
+   "picto": "pitchUp",
+   "draw": {
+    "type": "hline",
+    "y": "hz_y",
+    "t": "2/3"
+   },
+   "principle": "日落的主角是天空和云，给它更多画面。",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-sunpos",
+   "subs": [
+    "sunset"
+   ],
+   "when": "sun_mean > 220 && abs(sun_x - 0.5) < 0.12 && abs(sun_y - 0.5) < 0.15",
+   "priority": 3,
+   "confidence": "medium",
+   "tip": "把太阳移到三分线交点",
+   "problem": "太阳在正中间，画面呆板",
+   "picto": "sunpos",
+   "draw": {
+    "type": "arrow2",
+    "x": "sun_x",
+    "y": "sun_y",
+    "tx": "sun_tx",
+    "ty": "sun_ty",
+    "label": "太阳放这里"
+   },
+   "principle": "主体偏离正中，画面更有张力。",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-nightmerge",
+   "subs": [
+    "night"
+   ],
+   "when": "mean < 45",
+   "priority": 2,
+   "confidence": "high",
+   "tip": "开夜景合成，按快门后别动",
+   "problem": "光线很暗，单张噪点多",
+   "picto": "moon",
+   "suppresses": [
+    "EXP-006"
+   ],
+   "principle": "连拍多张对齐叠加，噪点随帧数增加而减少。",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-bright",
+   "subs": [
+    "vista",
+    "city",
+    "macro",
+    "full",
+    "half",
+    "travel",
+    "sit",
+    "selfie"
+   ],
+   "when": "hi > 0.12",
+   "priority": 2,
+   "confidence": "high",
+   "tip": "点一下最亮处，降低曝光",
+   "problem": "亮部过曝，细节会丢",
+   "picto": "bright",
+   "principle": "过曝的区域是纯白的，后期也救不回来。",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-noperson",
+   "subs": [
+    "full",
+    "half",
+    "travel",
+    "sit",
+    "selfie"
+   ],
+   "when": "!has_person && has_human",
+   "priority": 4,
+   "confidence": "high",
+   "tip": "{sub === 'selfie' ? '把脸放进椭圆框里' : '让人物进入画面，至少露出肩膀'}",
+   "problem": "还没找到人物",
+   "picto": "noperson",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-pos",
+   "subs": [
+    "full",
+    "travel",
+    "sit"
+   ],
+   "when": "has_person && abs(p_cx - 0.5) > 0.05 && abs(pos_d) > 0.06",
+   "priority": 3,
+   "confidence": "high",
+   "tip": "{pos_d > 0 ? '手机向左平移一点' : '手机向右平移一点'}",
+   "problem": "人物不在三分线上",
+   "picto": "panLeft",
+   "flip": "pos_d < 0",
+   "draw": {
+    "type": "move",
+    "x": "p_cx",
+    "y": "p_cy",
+    "tx": "pos_t"
+   },
+   "principle": "人站在三分线上，另一侧留给风景，主次分明。",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-headcut",
+   "subs": [
+    "full",
+    "half"
+   ],
+   "when": "has_person && head_top < 0.02",
+   "priority": 3,
+   "confidence": "high",
+   "tip": "手机往上抬，头顶留点空",
+   "problem": "头顶快被切到了",
+   "picto": "headCut",
+   "draw": {
+    "type": "band"
+   },
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-headroom-full",
+   "subs": [
+    "full"
+   ],
+   "when": "has_person && head_top > 0.15 && !(full && ankle_y > 0.9)",
+   "priority": 4,
+   "confidence": "medium",
+   "tip": "手机往下压一点，或走近一步",
+   "problem": "头顶留白太多，人显得矮",
+   "picto": "headroom",
+   "draw": {
+    "type": "headroom",
+    "y": "head_top"
+   },
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-headroom-half",
+   "subs": [
+    "half"
+   ],
+   "when": "has_person && head_top > 0.2",
+   "priority": 4,
+   "confidence": "medium",
+   "tip": "手机往下压一点，或走近一步",
+   "problem": "头顶留白太多",
+   "picto": "headroom",
+   "draw": {
+    "type": "headroom",
+    "y": "head_top"
+   },
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-legs",
+   "subs": [
+    "full"
+   ],
+   "when": "has_person && full && ankle_y < 0.88",
+   "priority": 4,
+   "confidence": "high",
+   "tip": "手机放到腰部，脚踩底边更显高",
+   "problem": "脚离画面底边太远",
+   "picto": "legs",
+   "draw": {
+    "type": "guideH",
+    "y": "0.95",
+    "from": "ankle_y",
+    "label": "脚踩这条线"
+   },
+   "principle": "手机放低、脚贴近画面底部，透视会把腿拉长。",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-toobig",
+   "subs": [
+    "travel"
+   ],
+   "when": "has_person && height_ratio > 0.42",
+   "priority": 3,
+   "confidence": "high",
+   "tip": "后退几步，多留一点风景",
+   "problem": "打卡照里人占得太大",
+   "picto": "toobig",
+   "draw": {
+    "type": "sizebox",
+    "x": "p_cx"
+   },
+   "principle": "人占画面 1/4~1/3 高，风景才有存在感。",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-neck",
+   "subs": [
+    "travel"
+   ],
+   "when": "has_person && has_hz && abs(hz_y - neck_y) < 0.03",
+   "priority": 3,
+   "confidence": "high",
+   "tip": "手机升高或降低，避开脖子",
+   "problem": "地平线横穿脖子",
+   "picto": "neck",
+   "draw": {
+    "type": "guideH",
+    "y": "hz_y",
+    "color": "warn",
+    "label": "避开脖子"
+   },
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-sitlevel",
+   "subs": [
+    "sit"
+   ],
+   "when": "has_person && eye_y > 0.5",
+   "priority": 3,
+   "confidence": "medium",
+   "tip": "蹲下来，和坐着的人平视",
+   "problem": "在俯拍坐着的人，显矮",
+   "picto": "sitlevel",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-knees",
+   "subs": [
+    "sit"
+   ],
+   "when": "has_person && thigh_short",
+   "priority": 4,
+   "confidence": "medium",
+   "tip": "腿斜着伸出去",
+   "problem": "膝盖正对镜头，腿显短",
+   "picto": "knees",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-far",
+   "subs": [
+    "selfie"
+   ],
+   "when": "has_person && face_w > 0.55",
+   "priority": 3,
+   "confidence": "high",
+   "tip": "手机拿远一点，脸放进框里",
+   "problem": "离得太近，广角会让脸变形",
+   "picto": "oval",
+   "draw": {
+    "type": "oval"
+   },
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-near",
+   "subs": [
+    "selfie"
+   ],
+   "when": "has_person && face_w < 0.2",
+   "priority": 4,
+   "confidence": "medium",
+   "tip": "手机拿近一点",
+   "problem": "脸太小，看不清表情",
+   "picto": "oval",
+   "draw": {
+    "type": "oval"
+   },
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-facepos",
+   "subs": [
+    "selfie"
+   ],
+   "when": "has_person && (abs(face_x - 0.5) > 0.1 || abs(face_y - 0.38) > 0.1)",
+   "priority": 3,
+   "confidence": "medium",
+   "tip": "{abs(face_x - 0.5) >= abs(face_y - 0.38) ? (face_x > 0.5 ? '手机向右移一点' : '手机向左移一点') : (face_y > 0.38 ? '手机往下压一点' : '手机往上抬一点')}",
+   "problem": "脸没在椭圆框里",
+   "picto": "oval",
+   "draw": {
+    "type": "oval"
+   },
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-pose",
+   "subs": [
+    "full",
+    "half",
+    "travel",
+    "sit",
+    "selfie"
+   ],
+   "when": "pose_on && pose_score >= 0 && pose_score < 75",
+   "priority": 4,
+   "confidence": "medium",
+   "tip": "{pose_hint}",
+   "problem": "姿势相似度 {pose_score}%",
+   "picto": "pose",
+   "draw": {
+    "type": "pose",
+    "short": "pose_short",
+    "pt": "pose_pt"
+   },
+   "drawWhen": "pose_pt && pose_short",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-poseok",
+   "subs": [
+    "full",
+    "half",
+    "travel",
+    "sit",
+    "selfie"
+   ],
+   "when": "pose_on && pose_score >= 75",
+   "priority": 5,
+   "confidence": "high",
+   "tip": "姿势到位，可以拍了",
+   "problem": "姿势相似度 {pose_score}%",
+   "picto": "poseOk",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  }
+ ],
+ "tips": [
+  {
+   "id": "tip-vista-1",
+   "subs": [
+    "vista"
+   ],
+   "tip": "日出后、日落前一小时光线最柔和，风景最出片",
+   "problem": "风景小技巧",
+   "principle": "黄金时段太阳角度低，光线暖、影子长，层次最丰富。",
+   "source": "风光摄影 · 黄金时段"
+  },
+  {
+   "id": "tip-vista-2",
+   "subs": [
+    "vista"
+   ],
+   "tip": "找一条路、一条河或一排树，让它把视线引向远方",
+   "problem": "风景小技巧",
+   "principle": "引导线会带着观众的视线走进画面深处。",
+   "source": "构图基础 · 引导线"
+  },
+  {
+   "id": "tip-vista-3",
+   "subs": [
+    "vista"
+   ],
+   "tip": "远处有一个小小的人，能衬托出风景的辽阔",
+   "problem": "风景小技巧",
+   "principle": "人是大家熟悉的尺度参照，用来对比山海的体量。",
+   "source": "风光摄影 · 尺度感"
+  },
+  {
+   "id": "tip-vista-4",
+   "subs": [
+    "vista"
+   ],
+   "tip": "横着拍更有开阔感，竖着拍更适合手机屏幕和高耸的山",
+   "problem": "风景小技巧",
+   "principle": "画幅方向会影响画面的情绪：横幅舒展，竖幅挺拔。",
+   "source": "构图基础 · 画幅"
+  },
+  {
+   "id": "tip-city-1",
+   "subs": [
+    "city"
+   ],
+   "tip": "用门洞、窗框、树枝把建筑框起来，画面更有故事感",
+   "problem": "建筑小技巧",
+   "principle": "框架构图能聚焦主体，也增加了前后层次。",
+   "source": "构图基础 · 框架构图"
+  },
+  {
+   "id": "tip-city-2",
+   "subs": [
+    "city"
+   ],
+   "tip": "要么完全平视，要么大胆贴地仰拍，最怕仰一半",
+   "problem": "建筑小技巧",
+   "principle": "轻微的透视变形像拍歪了，夸张的透视才像有意为之。",
+   "source": "建筑摄影 · 透视"
+  },
+  {
+   "id": "tip-city-3",
+   "subs": [
+    "city"
+   ],
+   "tip": "日落后 20 分钟是“蓝调时刻”，天空深蓝、灯光刚亮，城市最好看",
+   "problem": "建筑小技巧",
+   "principle": "蓝调时刻天空和人造光亮度接近，画面明暗均衡。",
+   "source": "城市摄影 · 蓝调时刻"
+  },
+  {
+   "id": "tip-city-4",
+   "subs": [
+    "city"
+   ],
+   "tip": "找重复的窗户、柱子和台阶，拍出节奏感",
+   "problem": "建筑小技巧",
+   "principle": "重复的元素会形成图案，带来秩序和韵律。",
+   "source": "构图基础 · 重复与韵律"
+  },
+  {
+   "id": "tip-sunset-1",
+   "subs": [
+    "sunset"
+   ],
+   "tip": "太阳落下后别急着走，10~20 分钟后的晚霞往往更美",
+   "problem": "日落小技巧",
+   "principle": "太阳在地平线以下时，云层被从下方照亮，颜色最浓。",
+   "source": "风光摄影 · 晚霞"
+  },
+  {
+   "id": "tip-sunset-2",
+   "subs": [
+    "sunset"
+   ],
+   "tip": "有云的天气才有好晚霞，万里无云反而单调",
+   "problem": "日落小技巧",
+   "principle": "云是晚霞的“画布”，没有云就没有色彩层次。",
+   "source": "风光摄影 · 天气"
+  },
+  {
+   "id": "tip-sunset-3",
+   "subs": [
+    "sunset"
+   ],
+   "tip": "找一棵树、一座桥或一个人做前景，拍成剪影",
+   "problem": "日落小技巧",
+   "principle": "剪影能给日落加上主体，避免只有一片天空。",
+   "source": "风光摄影 · 剪影"
+  },
+  {
+   "id": "tip-sunset-4",
+   "subs": [
+    "sunset"
+   ],
+   "tip": "不要直视太阳太久，也别让镜头长时间对着正午的太阳",
+   "problem": "日落小技巧",
+   "principle": "保护眼睛，也保护手机的感光元件。",
+   "source": "安全提示"
+  },
+  {
+   "id": "tip-night-1",
+   "subs": [
+    "night"
+   ],
+   "tip": "开启夜景模式，按快门后保持 2 秒不动",
+   "problem": "夜景小技巧",
+   "principle": "夜景模式需要连拍几张再合成，中途移动会糊。",
+   "source": "夜景 · 手机算法"
+  },
+  {
+   "id": "tip-night-2",
+   "subs": [
+    "night"
+   ],
+   "tip": "雨后的地面有倒影，蹲低拍，灯光翻倍",
+   "problem": "夜景小技巧",
+   "principle": "倒影让画面上下呼应，也增加了光点。",
+   "source": "夜景 · 倒影"
+  },
+  {
+   "id": "tip-night-3",
+   "subs": [
+    "night"
+   ],
+   "tip": "别让路灯直射镜头，容易出现光斑和眩光",
+   "problem": "夜景小技巧",
+   "principle": "强光直射镜头会在玻璃之间反射，形成鬼影。",
+   "source": "夜景 · 眩光"
+  },
+  {
+   "id": "tip-night-4",
+   "subs": [
+    "night"
+   ],
+   "tip": "擦一下镜头再拍，指纹会让灯光糊成一团",
+   "problem": "夜景小技巧",
+   "principle": "镜头上的油污会把点光源散射成一片雾。",
+   "source": "器材 · 清洁"
+  },
+  {
+   "id": "tip-night-5",
+   "subs": [
+    "night"
+   ],
+   "tip": "想要最好的效果，用小米相机的「夜景」模式拍，再点「相册」导入，这里帮你点评构图",
+   "problem": "夜景小技巧",
+   "principle": "系统相机的夜景模式能直接控制传感器长曝光，画质比网页能拿到的视频画面更好。",
+   "source": "夜景 · 系统相机"
+  },
+  {
+   "id": "tip-macro-1",
+   "subs": [
+    "macro"
+   ],
+   "tip": "逆着光拍花瓣和树叶，会更通透、更亮",
+   "problem": "特写小技巧",
+   "principle": "薄的花瓣在逆光下透光，颜色和纹理都更明显。",
+   "source": "静物 · 逆光"
+  },
+  {
+   "id": "tip-macro-2",
+   "subs": [
+    "macro"
+   ],
+   "tip": "蹲下来，和花保持同一高度拍",
+   "problem": "特写小技巧",
+   "principle": "平视角度更有代入感，也更容易得到干净的背景。",
+   "source": "静物 · 视角"
+  },
+  {
+   "id": "tip-macro-3",
+   "subs": [
+    "macro"
+   ],
+   "tip": "点一下屏幕上的花对焦，再拍",
+   "problem": "特写小技巧",
+   "principle": "近距离拍摄景深很浅，对焦点稍偏就会糊。",
+   "source": "静物 · 对焦"
+  },
+  {
+   "id": "tip-macro-4",
+   "subs": [
+    "macro"
+   ],
+   "tip": "雨后或清晨有露水，花草最有生气",
+   "problem": "特写小技巧",
+   "principle": "水珠会反射光线，给画面增加亮点。",
+   "source": "静物 · 时机"
+  },
+  {
+   "id": "tip-full-1",
+   "subs": [
+    "full"
+   ],
+   "tip": "让人边走边拍，比站着摆姿势更自然",
+   "problem": "全身照小技巧",
+   "principle": "动态中的身体更放松，表情也更真实。",
+   "source": "人像 · 抓拍"
+  },
+  {
+   "id": "tip-full-2",
+   "subs": [
+    "full"
+   ],
+   "tip": "让人看向画面空着的那一侧",
+   "problem": "全身照小技巧",
+   "principle": "视线方向留出空间，画面才不憋。",
+   "source": "人像 · 视线空间"
+  },
+  {
+   "id": "tip-full-3",
+   "subs": [
+    "full"
+   ],
+   "tip": "衣服颜色和背景拉开对比，人更跳",
+   "problem": "全身照小技巧",
+   "principle": "颜色对比能让主体从背景中分离出来。",
+   "source": "人像 · 色彩"
+  },
+  {
+   "id": "tip-full-4",
+   "subs": [
+    "full"
+   ],
+   "tip": "重心放在后脚，前脚脚尖点地，腿更显长",
+   "problem": "全身照小技巧",
+   "principle": "重心后移会让身体形成自然的曲线。",
+   "source": "人像 · 姿态"
+  },
+  {
+   "id": "tip-half-1",
+   "subs": [
+    "half"
+   ],
+   "tip": "面向窗户站，眼睛里会有亮亮的眼神光",
+   "problem": "半身照小技巧",
+   "principle": "眼神光让眼睛看起来有神。",
+   "source": "人像 · 眼神光"
+  },
+  {
+   "id": "tip-half-2",
+   "subs": [
+    "half"
+   ],
+   "tip": "下巴微微往前伸再往下收，下颌线更清晰",
+   "problem": "半身照小技巧",
+   "principle": "这个动作能拉开下巴和脖子的距离，避免双下巴。",
+   "source": "人像 · 姿态"
+  },
+  {
+   "id": "tip-half-3",
+   "subs": [
+    "half"
+   ],
+   "tip": "让手有事做：拿杯子、扶眼镜、整理头发",
+   "problem": "半身照小技巧",
+   "principle": "手放着不动会显得僵硬，有动作就自然了。",
+   "source": "人像 · 手部"
+  },
+  {
+   "id": "tip-half-4",
+   "subs": [
+    "half"
+   ],
+   "tip": "人离背景远一点，背景更虚，人更突出",
+   "problem": "半身照小技巧",
+   "principle": "主体和背景距离越大，背景虚化越明显。",
+   "source": "人像 · 背景虚化"
+  },
+  {
+   "id": "tip-travel-1",
+   "subs": [
+    "travel"
+   ],
+   "tip": "先找好地标的位置，再让人站过去，别挡住招牌",
+   "problem": "打卡小技巧",
+   "principle": "打卡照的重点是“人在哪里”，地标要拍清楚。",
+   "source": "旅行摄影 · 地标"
+  },
+  {
+   "id": "tip-travel-2",
+   "subs": [
+    "travel"
+   ],
+   "tip": "背影照不用管表情，很适合不爱拍照的人",
+   "problem": "打卡小技巧",
+   "principle": "背影把注意力交给风景，人物成为观众的替身。",
+   "source": "旅行摄影 · 背影"
+  },
+  {
+   "id": "tip-travel-3",
+   "subs": [
+    "travel"
+   ],
+   "tip": "游客多时，往前走几步，用长焦把人群排除在外",
+   "problem": "打卡小技巧",
+   "principle": "长焦视角窄，更容易避开杂乱的背景。",
+   "source": "旅行摄影 · 避开人群"
+  },
+  {
+   "id": "tip-travel-4",
+   "subs": [
+    "travel"
+   ],
+   "tip": "让道路或栏杆指向人物",
+   "problem": "打卡小技巧",
+   "principle": "引导线把观众的视线带到人物身上。",
+   "source": "构图基础 · 引导线"
+  },
+  {
+   "id": "tip-sit-1",
+   "subs": [
+    "sit"
+   ],
+   "tip": "坐在台阶或椅子的边缘，背挺直，人更精神",
+   "problem": "坐姿小技巧",
+   "principle": "坐满会让身体塌下去，坐边缘更挺拔。",
+   "source": "人像 · 坐姿"
+  },
+  {
+   "id": "tip-sit-2",
+   "subs": [
+    "sit"
+   ],
+   "tip": "一条腿伸直，一条腿弯曲，比两条腿并拢好看",
+   "problem": "坐姿小技巧",
+   "principle": "高低不同的腿部线条会形成节奏。",
+   "source": "人像 · 坐姿"
+  },
+  {
+   "id": "tip-sit-3",
+   "subs": [
+    "sit"
+   ],
+   "tip": "身体稍微往前倾，看起来更亲近",
+   "problem": "坐姿小技巧",
+   "principle": "前倾的身体语言传达出兴趣和亲近感。",
+   "source": "人像 · 身体语言"
+  },
+  {
+   "id": "tip-sit-4",
+   "subs": [
+    "sit"
+   ],
+   "tip": "侧身坐，比正对镜头更显瘦",
+   "problem": "坐姿小技巧",
+   "principle": "侧面的身体轮廓更窄、更有曲线。",
+   "source": "人像 · 坐姿"
+  },
+  {
+   "id": "tip-selfie-1",
+   "subs": [
+    "selfie"
+   ],
+   "tip": "手机举到比眼睛略高，斜向下 15°，下巴微收",
+   "problem": "自拍小技巧",
+   "principle": "略高的机位会让脸显小、眼睛显大。",
+   "source": "自拍 · 机位"
+  },
+  {
+   "id": "tip-selfie-2",
+   "subs": [
+    "selfie"
+   ],
+   "tip": "靠近窗户自拍，自然光最显皮肤好",
+   "problem": "自拍小技巧",
+   "principle": "窗户是柔和的大面积光源，能减少脸上的阴影。",
+   "source": "自拍 · 光线"
+  },
+  {
+   "id": "tip-selfie-3",
+   "subs": [
+    "selfie"
+   ],
+   "tip": "眼睛看镜头而不是屏幕，照片里才是在看你",
+   "problem": "自拍小技巧",
+   "principle": "前置镜头在屏幕上方，看屏幕时眼神会往下。",
+   "source": "自拍 · 眼神"
+  },
+  {
+   "id": "tip-selfie-4",
+   "subs": [
+    "selfie"
+   ],
+   "tip": "一次多拍几张，换几个角度，再挑最好的",
+   "problem": "自拍小技巧",
+   "principle": "细微的角度差别对自拍效果影响很大。",
+   "source": "自拍 · 方法"
+  },
+  {
+   "id": "tip-vista-5",
+   "subs": [
+    "vista"
+   ],
+   "tip": "清晨太阳刚出来时光线低、影子长，比正午立体得多",
+   "problem": "风景小技巧",
+   "principle": "",
+   "source": "风光摄影 · 光线",
+   "refs": [
+    "B1",
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-vista-6",
+   "subs": [
+    "vista"
+   ],
+   "tip": "放低手机贴近地面，带一点石头、花草做前景，画面更有纵深",
+   "problem": "风景小技巧",
+   "principle": "",
+   "source": "风光摄影 · 前景",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-vista-7",
+   "subs": [
+    "vista"
+   ],
+   "tip": "游客多时早点去，或等人群空档，再不行用树、矮墙把人挡在后面",
+   "problem": "风景小技巧",
+   "principle": "",
+   "source": "旅行摄影 · 避开人群",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-city-5",
+   "subs": [
+    "city"
+   ],
+   "tip": "别站在楼角正对面，往一侧挪，让一个立面占主导",
+   "problem": "建筑小技巧",
+   "principle": "",
+   "source": "建筑摄影 · 角度",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-city-6",
+   "subs": [
+    "city"
+   ],
+   "tip": "电线杆、车挡住楼时，横着挪几步再转回来拍",
+   "problem": "建筑小技巧",
+   "principle": "",
+   "source": "建筑摄影 · 去除障碍",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-city-7",
+   "subs": [
+    "city"
+   ],
+   "tip": "天空一片白时少拍天，等云或太阳出来再拍",
+   "problem": "建筑小技巧",
+   "principle": "",
+   "source": "建筑摄影 · 天空",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-city-8",
+   "subs": [
+    "city"
+   ],
+   "tip": "拍室内先收走桌上杂物，东西越少越好看；广角拍房间一定要端平",
+   "problem": "建筑小技巧",
+   "principle": "",
+   "source": "建筑摄影 · 室内",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-night-6",
+   "subs": [
+    "night"
+   ],
+   "tip": "拍月亮：点一下月亮，再把亮度往下拉，月面纹理才出得来",
+   "problem": "夜景小技巧",
+   "principle": "",
+   "source": "夜景 · 月亮",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-night-7",
+   "subs": [
+    "night"
+   ],
+   "tip": "拍烟花把手机靠稳，避开前景路灯，对焦远处",
+   "problem": "夜景小技巧",
+   "principle": "",
+   "source": "夜景 · 烟花",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-night-8",
+   "subs": [
+    "night"
+   ],
+   "tip": "室内台灯、窗光很有氛围，别把暗部硬提亮",
+   "problem": "夜景小技巧",
+   "principle": "",
+   "source": "现场光 · 氛围",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-macro-5",
+   "subs": [
+    "macro"
+   ],
+   "tip": "有风花在晃，等风停的一瞬再按",
+   "problem": "特写小技巧",
+   "principle": "",
+   "source": "静物 · 花卉",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-macro-6",
+   "subs": [
+    "macro"
+   ],
+   "tip": "背景别和花同一个颜色，换个角度让花跳出来",
+   "problem": "特写小技巧",
+   "principle": "",
+   "source": "静物 · 背景",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-macro-7",
+   "subs": [
+    "macro"
+   ],
+   "tip": "拍食物让光从侧后方来，更有质感；蔬果喷点清水更新鲜",
+   "problem": "特写小技巧",
+   "principle": "",
+   "source": "静物 · 美食",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-macro-8",
+   "subs": [
+    "macro"
+   ],
+   "tip": "阴天拍花颜色最正，正午的太阳反而太硬",
+   "problem": "特写小技巧",
+   "principle": "",
+   "source": "静物 · 光线",
+   "refs": [
+    "B1",
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-full-5",
+   "subs": [
+    "full"
+   ],
+   "tip": "拍孩子和宠物要蹲下来，和它的眼睛一样高",
+   "problem": "全身照小技巧",
+   "principle": "",
+   "source": "儿童宠物 · 视角",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-full-6",
+   "subs": [
+    "full"
+   ],
+   "tip": "合影别站成一排：高低错落站成三角形，大家看同一个地方",
+   "problem": "全身照小技巧",
+   "principle": "",
+   "source": "人像 · 合影",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-full-7",
+   "subs": [
+    "full"
+   ],
+   "tip": "运动的人要拍迎面而来的，别只拍到背影",
+   "problem": "全身照小技巧",
+   "principle": "",
+   "source": "人像 · 抓拍",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-half-5",
+   "subs": [
+    "half"
+   ],
+   "tip": "身体斜 45°，头再转回镜头，比正对镜头好看得多",
+   "problem": "半身照小技巧",
+   "principle": "",
+   "source": "人像 · 姿态",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-half-6",
+   "subs": [
+    "half"
+   ],
+   "tip": "别喊“笑一笑”，边聊天边拍，放松下来的表情最自然",
+   "problem": "半身照小技巧",
+   "principle": "",
+   "source": "人像 · 表情",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-half-7",
+   "subs": [
+    "half"
+   ],
+   "tip": "戴眼镜反光：让对方微微低下巴，或换个角度",
+   "problem": "半身照小技巧",
+   "principle": "",
+   "source": "人像 · 眼镜",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-half-8",
+   "subs": [
+    "half"
+   ],
+   "tip": "阴影里肤色会发青，可以把画面调暖一点",
+   "problem": "半身照小技巧",
+   "principle": "",
+   "source": "用光 · 色温",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-travel-5",
+   "subs": [
+    "travel"
+   ],
+   "tip": "拍当地人用 2 倍或长焦拍脸部特写，尊重对方意愿",
+   "problem": "打卡小技巧",
+   "principle": "",
+   "source": "旅行摄影 · 人物",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-travel-6",
+   "subs": [
+    "travel"
+   ],
+   "tip": "人在大景里只占一小块，反而能衬出景色的辽阔",
+   "problem": "打卡小技巧",
+   "principle": "",
+   "source": "旅行摄影 · 尺度感",
+   "refs": [
+    "B1",
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-sit-5",
+   "subs": [
+    "sit"
+   ],
+   "tip": "手要有事做：拿杯子、翻书、托下巴，但别用力压脸",
+   "problem": "坐姿小技巧",
+   "principle": "",
+   "source": "人像 · 手部",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-selfie-5",
+   "subs": [
+    "selfie"
+   ],
+   "tip": "别贴脸拍，手臂伸直一点，脸才不会变形",
+   "problem": "自拍小技巧",
+   "principle": "",
+   "source": "自拍 · 镜头畸变",
+   "refs": [
+    "B2"
+   ]
+  }
+ ]
+}

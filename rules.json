@@ -4056,8 +4056,8 @@
    "reason": "不适合普通用户/涉及动物福利，未采用"
   }
  ],
- "app_extensions_version": "ss-2.0",
- "merged_note": "主库 96 条来自两本教材的蒸馏（rules 前段，id 不带 SS 前缀）；SS- 开头的是随手大师针对 10 类细分场景的补充规则（subs 指细分场景，when 为表达式），tips 为画面无问题时轮播的技巧。与主库重复的旧规则已删除。",
+ "app_extensions_version": "ss-2.1",
+ "merged_note": "主库来自 knowledge/photo_rules.json（id 不带 SS 前缀）；SS- 开头的是随手大师针对 10 类细分场景的补充规则；tips 为画面无问题时轮播的技巧。本文件由 tools/build_rules.py 生成，请勿直接修改。",
  "tips": [
   {
    "id": "tip-vista-1",
@@ -4468,6 +4468,334 @@
    "problem": "自拍小技巧",
    "principle": "细微的角度差别对自拍效果影响很大。",
    "source": "自拍 · 方法"
+  },
+  {
+   "id": "tip-vista-5",
+   "subs": [
+    "vista"
+   ],
+   "tip": "清晨太阳刚出来时光线低、影子长，比正午立体得多",
+   "problem": "风景小技巧",
+   "principle": "",
+   "source": "风光摄影 · 光线",
+   "refs": [
+    "B1",
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-vista-6",
+   "subs": [
+    "vista"
+   ],
+   "tip": "放低手机贴近地面，带一点石头、花草做前景，画面更有纵深",
+   "problem": "风景小技巧",
+   "principle": "",
+   "source": "风光摄影 · 前景",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-vista-7",
+   "subs": [
+    "vista"
+   ],
+   "tip": "游客多时早点去，或等人群空档，再不行用树、矮墙把人挡在后面",
+   "problem": "风景小技巧",
+   "principle": "",
+   "source": "旅行摄影 · 避开人群",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-city-5",
+   "subs": [
+    "city"
+   ],
+   "tip": "别站在楼角正对面，往一侧挪，让一个立面占主导",
+   "problem": "建筑小技巧",
+   "principle": "",
+   "source": "建筑摄影 · 角度",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-city-6",
+   "subs": [
+    "city"
+   ],
+   "tip": "电线杆、车挡住楼时，横着挪几步再转回来拍",
+   "problem": "建筑小技巧",
+   "principle": "",
+   "source": "建筑摄影 · 去除障碍",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-city-7",
+   "subs": [
+    "city"
+   ],
+   "tip": "天空一片白时少拍天，等云或太阳出来再拍",
+   "problem": "建筑小技巧",
+   "principle": "",
+   "source": "建筑摄影 · 天空",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-city-8",
+   "subs": [
+    "city"
+   ],
+   "tip": "拍室内先收走桌上杂物，东西越少越好看；广角拍房间一定要端平",
+   "problem": "建筑小技巧",
+   "principle": "",
+   "source": "建筑摄影 · 室内",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-night-6",
+   "subs": [
+    "night"
+   ],
+   "tip": "拍月亮：点一下月亮，再把亮度往下拉，月面纹理才出得来",
+   "problem": "夜景小技巧",
+   "principle": "",
+   "source": "夜景 · 月亮",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-night-7",
+   "subs": [
+    "night"
+   ],
+   "tip": "拍烟花把手机靠稳，避开前景路灯，对焦远处",
+   "problem": "夜景小技巧",
+   "principle": "",
+   "source": "夜景 · 烟花",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-night-8",
+   "subs": [
+    "night"
+   ],
+   "tip": "室内台灯、窗光很有氛围，别把暗部硬提亮",
+   "problem": "夜景小技巧",
+   "principle": "",
+   "source": "现场光 · 氛围",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-macro-5",
+   "subs": [
+    "macro"
+   ],
+   "tip": "有风花在晃，等风停的一瞬再按",
+   "problem": "特写小技巧",
+   "principle": "",
+   "source": "静物 · 花卉",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-macro-6",
+   "subs": [
+    "macro"
+   ],
+   "tip": "背景别和花同一个颜色，换个角度让花跳出来",
+   "problem": "特写小技巧",
+   "principle": "",
+   "source": "静物 · 背景",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-macro-7",
+   "subs": [
+    "macro"
+   ],
+   "tip": "拍食物让光从侧后方来，更有质感；蔬果喷点清水更新鲜",
+   "problem": "特写小技巧",
+   "principle": "",
+   "source": "静物 · 美食",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-macro-8",
+   "subs": [
+    "macro"
+   ],
+   "tip": "阴天拍花颜色最正，正午的太阳反而太硬",
+   "problem": "特写小技巧",
+   "principle": "",
+   "source": "静物 · 光线",
+   "refs": [
+    "B1",
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-full-5",
+   "subs": [
+    "full"
+   ],
+   "tip": "拍孩子和宠物要蹲下来，和它的眼睛一样高",
+   "problem": "全身照小技巧",
+   "principle": "",
+   "source": "儿童宠物 · 视角",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-full-6",
+   "subs": [
+    "full"
+   ],
+   "tip": "合影别站成一排：高低错落站成三角形，大家看同一个地方",
+   "problem": "全身照小技巧",
+   "principle": "",
+   "source": "人像 · 合影",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-full-7",
+   "subs": [
+    "full"
+   ],
+   "tip": "运动的人要拍迎面而来的，别只拍到背影",
+   "problem": "全身照小技巧",
+   "principle": "",
+   "source": "人像 · 抓拍",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-half-5",
+   "subs": [
+    "half"
+   ],
+   "tip": "身体斜 45°，头再转回镜头，比正对镜头好看得多",
+   "problem": "半身照小技巧",
+   "principle": "",
+   "source": "人像 · 姿态",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-half-6",
+   "subs": [
+    "half"
+   ],
+   "tip": "别喊“笑一笑”，边聊天边拍，放松下来的表情最自然",
+   "problem": "半身照小技巧",
+   "principle": "",
+   "source": "人像 · 表情",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-half-7",
+   "subs": [
+    "half"
+   ],
+   "tip": "戴眼镜反光：让对方微微低下巴，或换个角度",
+   "problem": "半身照小技巧",
+   "principle": "",
+   "source": "人像 · 眼镜",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-half-8",
+   "subs": [
+    "half"
+   ],
+   "tip": "阴影里肤色会发青，可以把画面调暖一点",
+   "problem": "半身照小技巧",
+   "principle": "",
+   "source": "用光 · 色温",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-travel-5",
+   "subs": [
+    "travel"
+   ],
+   "tip": "拍当地人用 2 倍或长焦拍脸部特写，尊重对方意愿",
+   "problem": "打卡小技巧",
+   "principle": "",
+   "source": "旅行摄影 · 人物",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-travel-6",
+   "subs": [
+    "travel"
+   ],
+   "tip": "人在大景里只占一小块，反而能衬出景色的辽阔",
+   "problem": "打卡小技巧",
+   "principle": "",
+   "source": "旅行摄影 · 尺度感",
+   "refs": [
+    "B1",
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-sit-5",
+   "subs": [
+    "sit"
+   ],
+   "tip": "手要有事做：拿杯子、翻书、托下巴，但别用力压脸",
+   "problem": "坐姿小技巧",
+   "principle": "",
+   "source": "人像 · 手部",
+   "refs": [
+    "B2"
+   ]
+  },
+  {
+   "id": "tip-selfie-5",
+   "subs": [
+    "selfie"
+   ],
+   "tip": "别贴脸拍，手臂伸直一点，脸才不会变形",
+   "problem": "自拍小技巧",
+   "principle": "",
+   "source": "自拍 · 镜头畸变",
+   "refs": [
+    "B2"
+   ]
   }
  ]
 }

@@ -18,6 +18,8 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - name: 检查规则库已生成
+        run: python3 tools/build_rules.py --check
       - name: 验证规则库
         run: node tests/run.mjs
       - uses: actions/configure-pages@v5
