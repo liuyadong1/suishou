@@ -32,7 +32,11 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 .score{position:absolute;top:12px;left:12px;background:var(--glass);border-radius:12px;padding:4px 12px 6px;display:flex;align-items:baseline;gap:6px}
 .score b{font-family:var(--display);font-size:32px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1}
 .score span{font-size:12px;color:var(--muted)}
-.tag{position:absolute;top:14px;right:12px;font-size:12px;background:var(--glass);padding:5px 10px;border-radius:999px;color:var(--muted)}
+.flip{position:absolute;top:12px;right:12px;display:flex;align-items:center;gap:6px;border:0;background:var(--glass);color:var(--fg);border-radius:999px;padding:7px 12px 7px 10px;font-size:13px}
+.flip svg{width:20px;height:20px;fill:none;stroke:var(--fg);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.flip[aria-pressed="true"]{background:var(--target);color:var(--bg)}
+.flip[aria-pressed="true"] svg{stroke:var(--bg)}
+.tag{position:absolute;top:58px;right:12px;font-size:12px;background:var(--glass);padding:5px 10px;border-radius:999px;color:var(--muted)}
 .hints{position:absolute;left:12px;right:12px;bottom:12px;display:grid;gap:8px}
 .hint{background:var(--glass);border-radius:12px;padding:10px 12px;display:grid;grid-template-columns:auto 1fr;column-gap:10px;row-gap:2px;align-items:start}
 .hint i{grid-row:span 2;width:10px;height:10px;border-radius:50%;margin-top:6px;background:var(--now)}
@@ -83,7 +87,7 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 <body>
 <div id="app">
   <header class="top">
-    <div class="brand">随手大师<small>拍照教练 v0.1</small></div>
+    <div class="brand">随手大师<small>拍照教练 v0.1.1</small></div>
     <div class="seg" role="group" aria-label="拍摄模式">
       <button id="m-auto" data-mode="auto" aria-pressed="true">自动</button>
       <button id="m-scene" data-mode="scene" aria-pressed="false">风景</button>
@@ -95,6 +99,7 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
     <canvas id="view" width="900" height="1200" aria-label="取景画面与构图提示"></canvas>
     <div class="score"><b id="scoreVal">--</b><span>构图分</span></div>
     <div class="tag" id="tag">示例画面</div>
+    <button class="flip" id="btnFlip" aria-pressed="false" aria-label="切换前后摄像头"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8a2 2 0 0 1 2-2h2l2-2h4l2 2h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M9 12.5a3 3 0 0 1 5.2-2"/><path d="M15 11.5a3 3 0 0 1-5.2 2"/><path d="M14.2 8.6v1.9h-1.9"/><path d="M9.8 15.4v-1.9h1.9"/></svg><span id="flipLabel">后置</span></button>
     <div class="hints" id="hints" aria-live="polite"></div>
   </main>
 
@@ -125,7 +130,7 @@ const view = $('#view'), vctx = view.getContext('2d');
 const css = getComputedStyle(document.documentElement);
 const C = { target: css.getPropertyValue('--target').trim(), now: css.getPropertyValue('--now').trim(), warn: css.getPropertyValue('--warn').trim() };
 const FONT = '"PingFang SC","MiSans","Noto Sans SC",sans-serif';
-const S = { mode:'auto', pose:'none', live:false, human:null, video:null, stream:null, sensor:null, busy:false, lastRun:0, lastF:null, lastE:null, shown:[], active:new Map(), still:null, isSample:true, prev:null, sheetOpen:false, scoreS:null };
+const S = { mode:'auto', pose:'none', live:false, human:null, video:null, stream:null, sensor:null, busy:false, lastRun:0, lastF:null, lastE:null, shown:[], active:new Map(), still:null, isSample:true, prev:null, sheetOpen:false, scoreS:null, facing:'environment' };
 const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
 const mid = (a,b) => [(a[0]+b[0])/2, (a[1]+b[1])/2];
 const dist = (a,b) => Math.hypot(a[0]-b[0], a[1]-b[1]);
@@ -407,16 +412,23 @@ function debounce(rules){
   for(const [id, a] of S.active){ if(!seen.has(id) && now - a.last > 800) S.active.delete(id); }
   return [...S.active.values()].filter(a => now - a.since >= 400).map(a => a.r).sort((x, y) => x.pri - y.pri);
 }
+const frame = document.createElement('canvas'), fctx = frame.getContext('2d');
+const work = document.createElement('canvas'), wctx = work.getContext('2d');
 function loop(){
   if(!S.live) return;
   const v = S.video, W = v.videoWidth, H = v.videoHeight;
   if(W && !S.sheetOpen){
     if(view.width !== W || view.height !== H){ view.width = W; view.height = H; }
-    vctx.drawImage(v, 0, 0, W, H);
+    if(frame.width !== W || frame.height !== H){ frame.width = W; frame.height = H; }
+    const front = S.facing === 'user';
+    fctx.setTransform(front ? -1 : 1, 0, 0, 1, front ? W : 0, 0); fctx.drawImage(v, 0, 0, W, H); fctx.setTransform(1, 0, 0, 1, 0, 0);
+    vctx.drawImage(frame, 0, 0);
     if(S.lastF) drawOverlay(vctx, S.lastF, S.lastE, S.shown);
     if(!S.busy && performance.now() - S.lastRun > 90){
       S.busy = true; S.lastRun = performance.now();
-      analyze(v, W, H, true).then(F => {
+      if(work.width !== W || work.height !== H){ work.width = W; work.height = H; }
+      wctx.drawImage(frame, 0, 0);
+      analyze(work, W, H, true).then(F => {
         const E = evaluate(F); S.lastF = F; S.lastE = E; S.shown = debounce(E.rules);
         S.scoreS = S.scoreS == null ? E.score : Math.round(S.scoreS*0.7 + E.score*0.3);
         renderHints(S.shown, S.scoreS);
@@ -425,12 +437,17 @@ function loop(){
   }
   requestAnimationFrame(loop);
 }
+async function openCamera(facing){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('no camera api');
+  const st = await navigator.mediaDevices.getUserMedia({video: {facingMode: {ideal: facing}, width: {ideal: 1280}, height: {ideal: 720}}, audio: false});
+  const v = document.createElement('video'); v.playsInline = true; v.muted = true; v.srcObject = st; await v.play();
+  return {st, v};
+}
+function closeCamera(){ if(S.stream) S.stream.getTracks().forEach(t => t.stop()); S.stream = null; S.video = null; }
 async function startLive(){
   try {
-    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('no camera api');
-    const st = await navigator.mediaDevices.getUserMedia({video: {facingMode: {ideal: 'environment'}, width: {ideal: 1280}, height: {ideal: 720}}, audio: false});
-    const v = document.createElement('video'); v.playsInline = true; v.muted = true; v.srcObject = st; await v.play();
-    S.stream = st; S.video = v; S.live = true; S.active.clear(); S.scoreS = null;
+    const {st, v} = await openCamera(S.facing);
+    S.stream = st; S.video = v; S.live = true; S.active.clear(); S.scoreS = null; S.lastF = null;
     window.addEventListener('devicemotion', onMotion);
     $('#btnLive').setAttribute('aria-pressed', 'true'); $('#tag').hidden = true;
     toast('实时取景已开启，按提示调整，提示变少就可以拍了');
@@ -441,11 +458,33 @@ async function startLive(){
 }
 function stopLive(){
   S.live = false; window.removeEventListener('devicemotion', onMotion); S.sensor = null;
-  if(S.stream) S.stream.getTracks().forEach(t => t.stop());
-  S.stream = null; S.video = null; S.lastF = null;
+  closeCamera(); S.lastF = null;
   $('#btnLive').setAttribute('aria-pressed', 'false'); renderStill();
 }
-function grabFrame(){ const v = S.video, c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0); return c; }
+function updateFacingUI(){
+  const front = S.facing === 'user';
+  $('#btnFlip').setAttribute('aria-pressed', front ? 'true' : 'false');
+  $('#flipLabel').textContent = front ? '前置' : '后置';
+  $('#fileCam').setAttribute('capture', front ? 'user' : 'environment');
+}
+let flipping = false;
+async function flipCamera(){
+  if(flipping) return;
+  const next = S.facing === 'user' ? 'environment' : 'user';
+  if(!S.live){ S.facing = next; updateFacingUI(); toast(next === 'user' ? '已切到前置：点快门会打开自拍' : '已切到后置摄像头'); return; }
+  flipping = true;
+  const prev = S.facing;
+  closeCamera(); S.lastF = null; S.active.clear(); S.scoreS = null;
+  try {
+    const {st, v} = await openCamera(next);
+    S.stream = st; S.video = v; S.facing = next;
+  } catch(e){
+    toast('这台手机没有找到另一个摄像头');
+    try { const {st, v} = await openCamera(prev); S.stream = st; S.video = v; } catch(e2){ stopLive(); }
+  }
+  updateFacingUI(); flipping = false;
+}
+function grabFrame(){ const c = document.createElement('canvas'); c.width = frame.width; c.height = frame.height; c.getContext('2d').drawImage(frame, 0, 0); return c; }
 
 /* ---------- photo review ---------- */
 function loadImage(file){ return new Promise((res, rej) => { const u = URL.createObjectURL(file), im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = u; }); }
@@ -531,6 +570,7 @@ document.querySelector('.seg').addEventListener('click', e => { const b = e.targ
 $('#btnShutter').addEventListener('click', () => { if(S.live) showResult(grabFrame()); else $('#fileCam').click(); });
 $('#btnAlbum').addEventListener('click', () => $('#fileAlbum').click());
 $('#btnLive').addEventListener('click', () => { if(S.live) stopLive(); else startLive(); });
+$('#btnFlip').addEventListener('click', flipCamera);
 $('#fileCam').addEventListener('change', e => { handleFile(e.target.files[0]); e.target.value = ''; });
 $('#fileAlbum').addEventListener('change', e => { handleFile(e.target.files[0]); e.target.value = ''; });
 $('#closeSheet').addEventListener('click', closeSheet);
