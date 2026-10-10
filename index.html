@@ -89,6 +89,17 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 .compare figcaption{font-size:12px;color:var(--muted);text-align:center}
 .compare figcaption b{font-family:var(--display);font-size:18px;color:var(--fg);margin-left:4px}
 .row{display:flex;flex-wrap:wrap;gap:8px}
+.hint-wrap{display:grid;gap:6px}
+.fb{display:flex;gap:8px;justify-content:flex-end}
+.fbb{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:999px;padding:5px 14px;font-size:12px}
+.fbb[aria-pressed="true"]{border-color:var(--target);color:var(--fg)}
+.dbg{background:var(--panel);border-radius:12px;padding:12px 14px}
+.dbg summary{cursor:pointer;color:var(--muted);font-size:13px}
+.dbg[open]{display:grid;gap:10px}
+.dbg ol{margin:0;padding-left:20px;display:grid;gap:8px;font-size:13px;line-height:1.5}
+.dbg ol span{color:var(--muted)}
+.dbg a.btn{text-decoration:none;text-align:center}
+.feat{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto;gap:2px 10px;font-size:11px;font-family:ui-monospace,monospace;color:var(--muted);overflow-wrap:anywhere}
 .btn{background:var(--fg);color:var(--bg);border:0;border-radius:999px;padding:11px 18px;font-weight:600}
 .btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line);font-weight:500}
 @media (prefers-reduced-motion:reduce){.shutter span{transition:none}}
@@ -98,7 +109,7 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 <body>
 <div id="app">
   <header class="top">
-    <div class="brand">随手大师<small>拍照教练 v0.3</small></div>
+    <div class="brand">随手大师<small>拍照教练 v0.4</small></div>
     <div class="seg" role="group" aria-label="拍摄模式">
       <button id="m-auto" data-mode="auto" aria-pressed="true">自动</button>
       <button id="m-scene" data-mode="scene" aria-pressed="false">风景</button>
@@ -149,6 +160,7 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 <div class="toast" id="toast" hidden></div>
 
 <script type="module">
+import {compileRules, runRules} from './engine.js';
 const $ = s => document.querySelector(s);
 const view = $('#view'), vctx = view.getContext('2d');
 const css = getComputedStyle(document.documentElement);
@@ -421,122 +433,58 @@ function nearestThirds(x, y){
   const tx = x < 0.5 ? 1/3 : 2/3, ty = y < 0.5 ? 1/3 : 2/3;
   return [tx, ty];
 }
-function evaluate(F){
-  const out = [], add = (id, pri, pen, title, sub, draw) => out.push({id, pri, pen, title, sub, draw});
-  const sub = S.sub, kind = SUBS[sub].kind;
-  const P = kind === 'portrait' ? F.person : null;
-  const portrait = kind === 'portrait', scene = kind === 'scene';
-
-  // tilt: everywhere except selfies and close-ups
-  if(sub !== 'selfie' && sub !== 'macro'){
-    let theta = null, src = '';
-    if(F.sensor != null){ theta = F.sensor; src = 'sensor'; }
-    else if(F.horizon && (scene || F.horizon.conf > 0.8)){ theta = -F.horizon.angle; src = 'horizon'; }
-    if(theta != null && Math.abs(theta) >= 1.5){
-      add('tilt', 1, Math.min(25, Math.round(Math.abs(theta)*4)), `画面歪了 ${Math.abs(theta).toFixed(1)}°`, theta > 0 ? '手机右侧抬高一点，摆正再拍' : '手机左侧抬高一点，摆正再拍', {type:'tilt', theta, src});
-    }
-  }
-
-  if(scene){
-    const hz = F.horizon;
-    if(sub === 'vista'){
-      if(hz && hz.y > 0.4 && hz.y < 0.6){
-        const t = (hz.skySd || 0) > 16 ? 2/3 : 1/3;
-        add('horizon', 2, 12, '地平线压在画面正中', t > hz.y ? '手机往上仰一点，地平线落到下三分线，多留天空' : '手机往下压一点，地平线落到上三分线，多拍地面', {type:'hline', y:hz.y, t});
-      }
-      if(hz && (hz.skySd || 0) < 5 && hz.y > 0.5) add('plainsky', 4, 6, '天空没有云', '手机往下压，少拍天空，多拍地面', {type:'hline', y:hz.y, t:1/3});
-      if(hz && F.lowEdge < 0.04 && F.lowSd < 12) add('fore', 5, 6, '前景有点空', '画面下方放一点石头、花草或栏杆，更有层次', null);
-    }
-    if(sub === 'city'){
-      if(Math.abs(F.keystone) > 2.5) add('keystone', 2, 12, F.keystone > 0 ? '建筑竖线往里倒' : '建筑竖线往外张', F.keystone > 0 ? '手机别仰太多，竖直拿，后退几步再拍' : '手机别往下压，平视拍', {type:'keystone', ks:F.keystone});
-      if(F.symScore > 0.55 && Math.abs(F.symShift) > 0.03) add('sym', 3, 8, '对称建筑没对正', F.symShift > 0 ? '手机向右平移一点，对准中轴线' : '手机向左平移一点，对准中轴线', {type:'sym', c:0.5 + F.symShift});
-      if(F.topEdge > 0.15 && F.vdens > 0.04) add('top', 4, 6, '楼顶可能被切掉', '后退几步，把建筑拍完整', {type:'topband'});
-    }
-    if(sub === 'sunset'){
-      if(F.hi > 0.04) add('sunexp', 2, 12, '天空过曝', '点一下画面最亮的地方，降低曝光', null);
-      if(hz && hz.y < 0.58) add('sunhz', 3, 10, '天空留得不够', '手机往上仰，地平线放到下三分线，天空占 2/3', {type:'hline', y:hz.y, t:2/3});
-      if(F.sunMean > 220 && Math.abs(F.sunX - 0.5) < 0.12 && Math.abs(F.sunY - 0.5) < 0.15){
-        const [tx, ty] = nearestThirds(F.sunX, F.sunY);
-        add('sunpos', 3, 8, '太阳在正中间', '移动手机，把太阳放到三分线交点', {type:'arrow2', x:F.sunX, y:F.sunY, tx, ty, label:'太阳放这里'});
-      }
-      const Pp = F.person;
-      if(Pp){ const [fx, fy, fw, fh] = Pp.face; if(F.region(fx/F.W, fy/F.H, fw/F.W, fh/F.H) < F.mean*0.6) add('silhouette', 6, 0, '可以拍剪影', '人物站在太阳前，点亮部测光，拍出黑色剪影', null); }
-    }
-    if(sub === 'night'){
-      if(F.shake != null && F.shake > 6) add('shake', 1, 12, '手机在抖', '双手拿稳，或靠在栏杆、墙上，稳定条变绿再拍', {type:'shakepill'});
-      if(F.hi > 0.06) add('lights', 3, 8, '灯光过曝', '点一下最亮的灯，降低曝光', null);
-      if(F.mean < 40) add('nightdark', 4, 6, '画面很暗', '打开手机自带的夜景模式，效果更好', null);
-      add('nightmode', 8, 0, '夜景小技巧', '开启夜景模式，按快门后保持 2 秒不动', null);
-    }
-    if(sub === 'macro'){
-      if(F.borderSharp > F.centerSharp*0.9 && F.borderSharp > 8) add('clutter', 2, 12, '背景太乱', '换个角度，或蹲下来对着天空拍，背景更干净', null);
-      if(F.spread < 0.22 && Math.abs(F.sharpX - 0.5) < 0.08 && Math.abs(F.sharpY - 0.5) < 0.08){
-        const [tx, ty] = nearestThirds(F.sharpX + 0.001, F.sharpY + 0.001);
-        add('macropos', 3, 8, '主体在正中间', '移动手机，把主体放到三分线交点', {type:'arrow2', x:F.sharpX, y:F.sharpY, tx, ty, label:'主体放这里'});
-      }
-      if(F.spread > 0.3) add('closer', 3, 8, '主体太小', '再靠近一点，让主体占画面 1/3 以上', null);
-    }
-    if(sub !== 'night' && sub !== 'sunset'){
-      if(F.mean < 55) add('dark', 4, 10, '画面偏暗', '换到更亮的位置，或拿稳手机开夜景模式', null);
-      if(F.hi > 0.12) add('bright', 4, 10, '亮部过曝', '点一下画面最亮的地方，降低曝光', null);
-    }
-  }
-
-  if(portrait && !P){
-    if(S.human) add('noperson', 6, 0, '还没找到人物', sub === 'selfie' ? '把脸放进椭圆框里' : '让人物完整进入画面，至少露出肩膀', null);
-  }
+/* ---------- rule library ---------- */
+let LIB = null;
+const OK_RULE = {id:'ok', kind:'ok', pri:9, pen:0, title:'构图不错', sub:'可以按快门了', picto:'ok', flip:false, draw:null};
+function loadRules(){
+  return fetch('./rules.json', {cache:'no-cache'}).then(r => r.json()).then(j => {
+    LIB = compileRules(j);
+    LIB.count = {detect: LIB.rules.filter(r => r.kind === 'detect').length, tip: LIB.rules.filter(r => r.kind === 'tip').length};
+    if(!S.live) renderStill();
+  }).catch(e => { $('#status').textContent = '规则库加载失败：' + e.message; });
+}
+function buildFeatures(F){
+  const sub = S.sub, kind = SUBS[sub].kind, P = F.person, hz = F.horizon;
+  let tilt = null, src = '';
+  if(F.sensor != null){ tilt = F.sensor; src = 'sensor'; }
+  else if(hz && (kind === 'scene' || hz.conf > 0.8)){ tilt = -hz.angle; src = 'horizon'; }
+  const [sun_tx, sun_ty] = nearestThirds(F.sunX, F.sunY), [sharp_tx, sharp_ty] = nearestThirds(F.sharpX + 0.001, F.sharpY + 0.001);
+  const f = {
+    has_human: !!S.human, front: S.facing === 'user',
+    mean: F.mean, hi: F.hi, warm: F.warm, sun_mean: F.sunMean, sun_x: F.sunX, sun_y: F.sunY, sun_tx, sun_ty,
+    vdens: F.vdens, keystone: F.keystone, sym_score: F.symScore, sym_shift: F.symShift, sym_c: 0.5 + F.symShift, top_edge: F.topEdge,
+    low_edge: F.lowEdge, low_sd: F.lowSd, center_sharp: F.centerSharp, border_sharp: F.borderSharp, sharp_x: F.sharpX, sharp_y: F.sharpY, sharp_tx, sharp_ty, spread: F.spread,
+    has_shake: F.shake != null, shake: F.shake ?? -1,
+    has_tilt: tilt != null, tilt: tilt ?? 0, tilt_abs: tilt == null ? 0 : Math.round(Math.abs(tilt)*10)/10, tilt_src: src,
+    has_hz: !!hz, hz_y: hz ? hz.y : -1, hz_conf: hz ? hz.conf : 0, sky_sd: hz ? (hz.skySd || 0) : 0, hz_t: hz && (hz.skySd || 0) > 16 ? 2/3 : 1/3,
+    has_person: !!P, p_cx: 0.5, p_cy: 0.5, pos_t: 0.5, pos_d: 0, head_top: -1, full: false, ankle_y: -1, knee_y: -1, eye_y: -1, elbow_y: -1,
+    square: false, height_ratio: -1, neck_y: -1, sitting: false, thigh_short: false, face_w: -1, face_x: 0.5, face_y: 0.5, face_rect: null, face_dark: false,
+    pose_on: false, pose_score: -1, pose_hint: '', pose_short: '', pose_pt: null,
+  };
   if(P){
-    const thirdsPos = () => {
-      const t = P.cx < 0.5 ? 1/3 : 2/3, d = t - P.cx;
-      if(Math.abs(P.cx - 0.5) > 0.05 && Math.abs(d) > 0.06) add('pos', 2, 15, d > 0 ? '手机向左平移一点' : '手机向右平移一点', `让人物落在${t < 0.5 ? '左' : '右'}侧三分线上`, {type:'move', x:P.cx, y:P.cy, tx:t});
-    };
-    const headRules = (maxTop) => {
-      if(P.headTop < 0.02) add('head', 3, 12, '头顶快被切到了', '手机稍微往上抬，头顶留一点空', {type:'band'});
-      else if(P.headTop > maxTop && !(P.full && P.ankleY > 0.9)) add('headroom', 3, 10, '头顶空太多', '手机往下压一点，或者走近一步', {type:'headroom', y:P.headTop});
-    };
-    if(sub === 'full'){
-      thirdsPos(); headRules(0.15);
-      if(!P.full && P.kneeY != null) add('nofeet', 3, 10, '脚没拍进来', '全身照要拍到脚：手机往下一点，或后退一步', {type:'cut', y:Math.min(0.97, P.kneeY)});
-      if(P.full && P.ankleY > 0.97) add('feet', 3, 10, '脚快被切掉了', '手机往上抬一点，脚下留出空间', {type:'cut', y:P.ankleY});
-      else if(P.full && P.ankleY < 0.88) add('legs', 4, 4, '脚离底边太远', '手机降到腰部高度、稍微仰拍，脚踩在画面底边附近更显腿长', {type:'guideH', y:0.95, from:P.ankleY, label:'脚踩这条线'});
-    }
-    if(sub === 'half'){
-      headRules(0.2);
-      if(P.eyeY != null && Math.abs(P.eyeY - 1/3) > 0.06) add('eyes', 2, 12, P.eyeY > 1/3 ? '眼睛位置太低' : '眼睛位置太高', P.eyeY > 1/3 ? '手机往下压一点，眼睛放到上三分线' : '手机往上抬一点，眼睛放到上三分线', {type:'guideH', y:1/3, from:P.eyeY, label:'眼睛放这里'});
-      if(P.elbowY != null && P.elbowY > 0.92 && P.elbowY < 1.0) add('elbow', 3, 10, '在手肘处截断', '截在腰部或胯部，别正好切在手肘', {type:'cut', y:P.elbowY});
-      if(P.square) add('turn', 5, 4, '身体正对镜头', '身体侧转 30°，脸转回镜头，更显瘦', null);
-    }
-    if(sub === 'travel'){
-      thirdsPos();
-      if(P.heightRatio > 0.42) add('toobig', 2, 12, '人占得太大', '后退几步，或让人走远一点，多留风景', {type:'sizebox', x:P.cx});
-      if(F.horizon && Math.abs(F.horizon.y - P.neckY) < 0.03) add('neck', 3, 10, '地平线穿过脖子', '手机升高或降低一点，让地平线避开脖子', {type:'guideH', y:F.horizon.y, color:'warn', label:'避开脖子'});
-    }
-    if(sub === 'sit'){
-      thirdsPos();
-      if(P.eyeY != null && P.eyeY > 0.5) add('sitlevel', 2, 10, '在俯拍坐着的人', '手机降低到坐着的人眼睛高度，平视拍', null);
-      if(P.thighShort) add('knees', 3, 8, '膝盖对着镜头', '腿斜着伸出去，别让膝盖正对镜头', null);
-    }
-    if(sub === 'selfie'){
-      const ox = 0.5, oy = 0.38, dx = P.faceC[0] - ox, dy = P.faceC[1] - oy;
-      if(P.faceW > 0.55) add('far', 2, 10, '离得太近了', '手机拿远一点，把脸放进椭圆框', {type:'oval'});
-      else if(P.faceW < 0.2) add('near', 3, 6, '脸太小了', '手机拿近一点，把脸放进椭圆框', {type:'oval'});
-      if(Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1){
-        const txt = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? '手机向右移一点' : '手机向左移一点') : (dy > 0 ? '手机往下压一点' : '手机往上抬一点');
-        add('facepos', 2, 10, '脸没在框里', txt + '，让脸进入椭圆框', {type:'oval'});
-      }
-      add('chin', 7, 0, '自拍小技巧', '手机举到比眼睛略高，斜向下 15°，下巴微收', null);
-    }
-    const [fx, fy, fw, fh] = P.face, face = F.region(fx/F.W, fy/F.H, fw/F.W, fh/F.H);
-    if(F.mean > 85 && face < F.mean * 0.62) add('backlight', 2, 15, '人物脸偏暗（逆光）', sub === 'selfie' ? '转身面向光源，让光照到脸上' : '两人一起转身 45° 变侧光，或点一下脸部测光', {type:'box', r:P.face});
-    if(S.pose !== 'none'){
+    const t = P.cx < 0.5 ? 1/3 : 2/3, [fx, fy, fw, fh] = P.face, face = F.region(fx/F.W, fy/F.H, fw/F.W, fh/F.H);
+    Object.assign(f, {
+      p_cx: P.cx, p_cy: P.cy, pos_t: t, pos_d: t - P.cx, head_top: P.headTop, full: P.full, ankle_y: P.ankleY ?? -1, knee_y: P.kneeY ?? -1,
+      eye_y: P.eyeY ?? -1, elbow_y: P.elbowY ?? -1, square: P.square, height_ratio: P.heightRatio, neck_y: P.neckY, sitting: P.sitting, thigh_short: P.thighShort,
+      face_w: P.faceW, face_x: P.faceC[0], face_y: P.faceC[1], face_rect: P.face, face_dark: F.mean > 85 && face < F.mean*0.62,
+    });
+    P.match = null;
+    if(S.pose !== 'none' && kind === 'portrait'){
+      f.pose_on = true;
       const m = matchPose(P); P.match = m;
-      if(m){ if(m.score < 75) add('pose', 5, Math.round((75 - m.score)/3), `姿势相似度 ${m.score}%`, m.hint, m.short && m.pt ? {type:'pose', short:m.short, pt:m.pt} : null); else add('poseok', 8, 0, `姿势到位 ${m.score}%`, '可以拍了', null); }
+      if(m){ f.pose_score = m.score; f.pose_hint = m.hint; f.pose_short = m.short; f.pose_pt = m.pt; }
     }
-    if(F.mean < 55) add('dark', 4, 10, '画面偏暗', '换到更亮的位置', null);
-    if(F.hi > 0.12) add('bright', 4, 10, '亮部过曝', '点一下人物的脸测光', null);
   }
-  out.sort((a, b) => a.pri - b.pri);
-  return {rules: out, score: Math.max(30, 100 - out.reduce((s, r) => s + r.pen, 0)), portrait: !!P, scene, sub};
+  return f;
+}
+function evaluate(F){
+  const sub = S.sub, kind = SUBS[sub].kind;
+  const base = {portrait: kind === 'portrait' && !!F.person, scene: kind === 'scene', sub};
+  if(!LIB) return {...base, rules: [], display: [], score: '--', tip: null, features: null, errors: []};
+  const f = buildFeatures(F);
+  const res = runRules(LIB, f, {sub, tipIndex: Math.floor(Date.now()/6000)});
+  const display = res.rules.some(r => r.pen > 0) ? res.rules : [OK_RULE, ...res.rules, res.tip].filter(Boolean);
+  return {...base, rules: res.rules, display, score: res.score, tip: res.tip, features: f, errors: res.errors};
 }
 
 /* ---------- drawing ---------- */
@@ -642,7 +590,7 @@ function drawOverlay(ctx, F, E, shown){
       pills.push(['头顶到这里', W*0.75 + lw*3, H*0.1 - ph/2, C.target, 'left']);
     } else if(d.type === 'cut'){
       ctx.strokeStyle = C.warn; ctx.lineWidth = lw*1.8; ctx.setLineDash([lw*3, lw*2]); ctx.beginPath(); ctx.moveTo(0, d.y*H); ctx.lineTo(W, d.y*H); ctx.stroke(); ctx.setLineDash([]);
-      pills.push([r.id === 'knee' ? '别在膝盖截断' : '脚下留点空', 0, d.y*H - ph - lw*3, C.warn, 'left']);
+      pills.push([d.label || '注意截断位置', 0, d.y*H - ph - lw*3, C.warn, 'left']);
     } else if(d.type === 'box'){
       const [bx, by, bw, bh] = d.r;
       ctx.strokeStyle = C.warn; ctx.lineWidth = lw*1.8; ctx.strokeRect(bx, by, bw, bh);
@@ -735,51 +683,12 @@ const PIC = {
   sitlevel: `<circle cx="42" cy="22" r="5" stroke="${PW}"/><path d="M42 27 V40 H54 V54 M42 40 L36 54" stroke="${PW}"/><rect x="8" y="16" width="6" height="14" rx="2" stroke="${PO}"/><path d="M14 22 H36" stroke="${PT}" stroke-dasharray="3 3"/><path d="M11 40 V52" stroke="${PO}"/><path d="M7 36 L11 32 L15 36" stroke="${PO}" transform="rotate(180 11 34)"/>`,
   knees: `<circle cx="20" cy="14" r="5" stroke="${PW}"/><path d="M20 19 V36 L44 44 L56 58" stroke="${PW}"/><path d="M20 36 L40 54" stroke="${PT}" stroke-dasharray="3 3"/><path d="M48 30 A16 16 0 0 1 56 44" stroke="${PO}"/>`,
   oval: `<ellipse cx="32" cy="28" rx="16" ry="21" stroke="${PT}" stroke-dasharray="4 3"/><circle cx="32" cy="28" r="9" stroke="${PW}"/><path d="M14 60 Q32 46 50 60" stroke="${PW}"/>`,
+  idea: `<path d="M32 8 A15 15 0 0 0 23 35 V42 H41 V35 A15 15 0 0 0 32 8 Z" stroke="${PT}"/><path d="M25 49 H39 M27 55 H37" stroke="${PT}"/><path d="M32 18 V26" stroke="${PO}"/>`,
   selfieAngle: `<circle cx="22" cy="40" r="7" stroke="${PW}"/><path d="M12 60 Q22 50 32 60" stroke="${PW}"/><rect x="40" y="8" width="8" height="16" rx="2" stroke="${PO}" transform="rotate(25 44 16)"/><path d="M40 22 L26 34" stroke="${PT}" stroke-dasharray="3 3"/>`,
 };
 function pictoFor(r){
-  const d = r.draw || {};
-  switch(r.id){
-    case 'tilt': return svg64(d.theta < 0 ? flipX(PIC.tilt) : PIC.tilt);
-    case 'horizon': return svg64(d.t > d.y ? PIC.pitchUp : PIC.pitchDown);
-    case 'pos': return svg64(d.tx > d.x ? PIC.panLeft : flipX(PIC.panLeft));
-    case 'head': return svg64(PIC.headCut);
-    case 'headroom': return svg64(PIC.headroom);
-    case 'knee': return svg64(PIC.cut);
-    case 'feet': return svg64(PIC.feet);
-    case 'backlight': return svg64(PIC.backlight);
-    case 'legs': return svg64(PIC.legs);
-    case 'pose': return svg64(PIC.pose);
-    case 'poseok': return svg64(PIC.poseOk);
-    case 'dark': return svg64(PIC.dark);
-    case 'bright': return svg64(PIC.bright);
-    case 'noperson': return svg64(PIC.noperson);
-    case 'plainsky': return svg64(PIC.pitchDown);
-    case 'fore': return svg64(PIC.fore);
-    case 'keystone': return svg64(PIC.keystone);
-    case 'sym': return svg64(PIC.sym);
-    case 'top': return svg64(PIC.top);
-    case 'sunexp': case 'lights': return svg64(PIC.bright);
-    case 'sunhz': return svg64(PIC.pitchUp);
-    case 'sunpos': return svg64(PIC.sunpos);
-    case 'silhouette': return svg64(PIC.silhouette);
-    case 'shake': return svg64(PIC.shake);
-    case 'nightdark': case 'nightmode': return svg64(PIC.moon);
-    case 'clutter': return svg64(PIC.clutter);
-    case 'macropos': return svg64(PIC.macropos);
-    case 'closer': return svg64(PIC.closer);
-    case 'nofeet': return svg64(PIC.feet);
-    case 'eyes': return svg64(PIC.eyes);
-    case 'elbow': return svg64(PIC.elbow);
-    case 'turn': return svg64(PIC.turn);
-    case 'toobig': return svg64(PIC.toobig);
-    case 'neck': return svg64(PIC.neck);
-    case 'sitlevel': return svg64(PIC.sitlevel);
-    case 'knees': return svg64(PIC.knees);
-    case 'far': case 'near': case 'facepos': return svg64(PIC.oval);
-    case 'chin': return svg64(PIC.selfieAngle);
-    default: return svg64(PIC.ok);
-  }
+  const body = PIC[r.picto] || PIC.idea;
+  return svg64(r.flip ? flipX(body) : body);
 }
 function hintHTML(r){ return `<div class="hint"><span class="pic">${pictoFor(r)}</span><strong>${r.title}</strong><p>${r.sub}</p></div>`; }
 const OK_HINT = `<div class="hint"><span class="pic">${svg64(PIC.ok)}</span><strong>构图不错</strong><p>可以按快门了</p></div>`;
@@ -793,7 +702,7 @@ async function renderStill(){
   const c = S.still; if(!c) return;
   const F = await analyze(c, c.width, c.height); applyRecommendation(F, false); const E = evaluate(F);
   view.width = c.width; view.height = c.height; vctx.drawImage(c, 0, 0); drawOverlay(vctx, F, E, E.rules);
-  renderHints(E.rules, E.score);
+  renderHints(E.display, E.score);
   $('#tag').hidden = false; $('#tag').textContent = S.isSample ? '示例画面' : '上一张照片';
 }
 function drawSample(){
@@ -844,7 +753,7 @@ function loop(){
       if(work.width !== W || work.height !== H){ work.width = W; work.height = H; }
       wctx.drawImage(frame, 0, 0);
       analyze(work, W, H, true).then(F => {
-        applyRecommendation(F, true); const E = evaluate(F); S.lastF = F; S.lastE = E; S.shown = debounce(E.rules);
+        applyRecommendation(F, true); const E = evaluate(F); S.lastF = F; S.lastE = E; S.shown = debounce(E.display);
         S.scoreS = S.scoreS == null ? E.score : Math.round(S.scoreS*0.7 + E.score*0.3);
         renderHints(S.shown, S.scoreS);
       }).catch(() => {}).finally(() => { S.busy = false; });
@@ -912,6 +821,33 @@ async function handleFile(file, fromAlbum){
     c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
     await showResult(c, {file, fromAlbum});
   } catch(e){ toast('这张图片打不开，换一张试试'); }
+}
+
+/* ---------- validation: feedback + hit details ---------- */
+const FB_KEY = 'ss_fb_v1', FBLOG_KEY = 'ss_fblog_v1';
+function readJSON(k, d){ try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch(e){ return d; } }
+function writeJSON(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+function compactFeatures(f){ const o = {}; if(!f) return o; for(const k in f){ const v = f[k]; if(typeof v === 'number') o[k] = Math.round(v*1000)/1000; else if(typeof v === 'boolean') o[k] = v; } return o; }
+function recordFeedback(id, v, ctx){
+  const all = readJSON(FB_KEY, {}); const e = all[id] || {up: 0, down: 0}; e[v] = (e[v] || 0) + 1; all[id] = e; writeJSON(FB_KEY, all);
+  const log = readJSON(FBLOG_KEY, []); log.push({id, v, sub: ctx.sub, score: ctx.score, t: new Date().toISOString(), f: compactFeatures(ctx.f)}); writeJSON(FBLOG_KEY, log.slice(-300));
+}
+function hintFbHTML(r){
+  const fb = r.kind === 'detect' ? `<div class="fb"><button class="fbb" data-fb="up" data-rule="${r.id}" aria-pressed="false">有用</button><button class="fbb" data-fb="down" data-rule="${r.id}" aria-pressed="false">不准</button></div>` : '';
+  return `<div class="hint-wrap">${hintHTML(r)}${fb}</div>`;
+}
+function debugHTML(E){
+  if(!LIB) return '';
+  const fired = E.rules.length ? E.rules.map(r => `<li><b>${r.id}</b> ${r.title}（扣 ${r.pen} 分）${r.principle ? `<br><span>${r.principle}</span>` : ''}</li>`).join('') : '<li>没有规则命中</li>';
+  const f = compactFeatures(E.features);
+  const feats = Object.keys(f).map(k => `<span>${k}</span><span>${f[k]}</span>`).join('');
+  const errs = E.errors.length ? `<p class="note" style="color:var(--warn)">规则执行出错：${E.errors.join('；')}</p>` : '';
+  return `<details class="dbg"><summary>规则命中详情（验证用）</summary>
+    <p class="note">规则库 v${LIB.version} · 检测规则 ${LIB.count.detect} 条 · 场景技巧 ${LIB.count.tip} 条 · 当前场景：${SUBS[E.sub].name}</p>
+    <ol>${fired}</ol>${errs}
+    <p class="note">画面特征值</p><div class="feat">${feats}</div>
+    <a class="btn ghost" href="./rules.html">查看完整规则库和反馈统计</a>
+  </details>`;
 }
 
 /* ---------- saving to the phone ---------- */
@@ -985,7 +921,8 @@ async function showResult(c, opts = {}){
     <div id="resImg"></div>
     <div class="row">${S.current.saved ? '<button class="btn ghost" id="savePhoto">这张来自相册，已保存</button>' : '<button class="btn" id="savePhoto">保存到相册</button>'}</div>
     <h3>怎么改</h3>
-    <div class="list">${E.rules.length ? E.rules.map(hintHTML).join('') : OK_HINT}</div>
+    <div class="list">${E.display.length ? E.display.map(hintFbHTML).join('') : OK_HINT}</div>
+    ${debugHTML(E)}
     ${crop ? `<h3>建议构图</h3><p class="note">自动摆正并按三分线裁剪后的效果，下一张照着这个拍。</p>
       <div class="compare"><figure><img id="imgOrig" alt="原图"><figcaption>原图<b>${E.score}</b></figcaption></figure><figure><img id="imgCrop" alt="建议构图"><figcaption>建议<b>${E2.score}</b></figcaption></figure></div>` : ''}
     <div class="row">
@@ -995,6 +932,11 @@ async function showResult(c, opts = {}){
     <div id="cardOut"></div>
     <button class="btn ghost" id="again">按提示再拍一张</button>`;
   $('#resImg').appendChild(o);
+  body.querySelectorAll('.fbb').forEach(b => b.onclick = () => {
+    recordFeedback(b.dataset.rule, b.dataset.fb, {sub: E.sub, score: E.score, f: E.features});
+    b.parentElement.querySelectorAll('.fbb').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+    toast(b.dataset.fb === 'up' ? '已记录：这条提示有用' : '已记录：这条提示不准，我们会调整');
+  });
   if(!S.current.saved) $('#savePhoto').onclick = savePhoto;
   if(crop){
     $('#imgOrig').src = c.toDataURL('image/jpeg', 0.85); $('#imgCrop').src = crop.toDataURL('image/jpeg', 0.85);
@@ -1028,7 +970,7 @@ $('#cfSave').addEventListener('click', () => { savePhoto(); hideConfirm(); const
 $('#cfDiscard').addEventListener('click', () => { if(S.current) S.current.saved = true; hideConfirm(); const n = pendingLeave; pendingLeave = null; if(n) n(); });
 $('#cfCancel').addEventListener('click', () => { pendingLeave = null; hideConfirm(); });
 
-initPoseBar(); initSceneBar(); renderSceneBar(); renderPoseBar();
+initPoseBar(); initSceneBar(); renderSceneBar(); renderPoseBar(); loadRules();
 S.still = drawSample();
 renderStill();
 

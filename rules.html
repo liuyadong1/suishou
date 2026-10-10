@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0D1112">
+<title>随手大师规则库</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{--bg:#0D1112;--panel:#171D1F;--line:#2B3437;--fg:#EEF2F1;--muted:#95A29F;--target:#4FD6B8;--now:#F3A443;--warn:#F07A6A;color-scheme:dark;
+  --body:"PingFang SC","MiSans","HarmonyOS Sans SC","Noto Sans SC","Microsoft YaHei",system-ui,sans-serif}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);font-size:14px;line-height:1.6}
+main{max-width:760px;margin:0 auto;padding-inline:16px;padding-block:calc(env(safe-area-inset-top,0px) + 20px) calc(40px + env(safe-area-inset-bottom,0px));display:grid;gap:20px}
+a{color:var(--target)}
+h1{margin:0;font-size:24px;text-wrap:balance}
+.lead{margin:0;color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.stat{background:var(--panel);border-radius:12px;padding:10px 12px}
+.stat b{display:block;font-size:22px;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted)}
+.filters{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.filters button{flex:0 0 auto;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+.filters button[aria-pressed="true"]{border-color:var(--target);color:var(--fg)}
+.tools{display:flex;flex-wrap:wrap;gap:8px}
+.btn{border:0;background:var(--fg);color:var(--bg);border-radius:999px;padding:9px 16px;font:inherit;font-weight:600;cursor:pointer;text-decoration:none}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line);font-weight:500}
+.list{display:grid;gap:10px}
+.rule{background:var(--panel);border-radius:14px;padding:14px 16px;display:grid;gap:6px;min-width:0}
+.rule header{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.rule h2{margin:0;font-size:16px}
+.tag{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.tag.detect{border-color:var(--now);color:var(--now)}
+.tag.tip{border-color:var(--target);color:var(--target)}
+.rule p{margin:0}
+.muted{color:var(--muted)}
+.cond{font-family:ui-monospace,monospace;font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.fbline{font-size:12px;color:var(--muted)}
+.fbline b{color:var(--fg)}
+.fbline .down{color:var(--warn)}
+button:focus-visible,a:focus-visible{outline:2px solid var(--target);outline-offset:2px}
+@media (max-width:480px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+<main>
+  <a href="./">← 返回取景</a>
+  <div style="display:grid;gap:6px">
+    <h1>随手大师规则库</h1>
+    <p class="lead" id="lead">读取中…</p>
+  </div>
+  <div class="stats">
+    <div class="stat"><b id="nDetect">-</b><span>检测规则</span></div>
+    <div class="stat"><b id="nTip">-</b><span>场景技巧</span></div>
+    <div class="stat"><b id="nUp">0</b><span>“有用”反馈</span></div>
+    <div class="stat"><b id="nDown">0</b><span>“不准”反馈</span></div>
+  </div>
+  <div class="tools">
+    <button class="btn" id="copyFb">复制反馈数据</button>
+    <button class="btn ghost" id="onlyFb" aria-pressed="false">只看有反馈的规则</button>
+  </div>
+  <p class="muted" id="copyNote" hidden></p>
+  <div class="filters" id="filters" role="group" aria-label="按场景筛选"></div>
+  <div class="list" id="list"></div>
+</main>
+<script type="module">
+const $ = s => document.querySelector(s);
+const NAMES = {vista:'山海远景', city:'城市建筑', sunset:'日出日落', night:'夜景灯光', macro:'花草特写', full:'全身照', half:'半身照', travel:'人景打卡', sit:'坐姿', selfie:'自拍'};
+const read = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch(e){ return d; } };
+const fb = read('ss_fb_v1', {}), log = read('ss_fblog_v1', []);
+let filter = 'all', onlyFb = false, lib = null;
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const plain = s => esc(s).replace(/\{[^{}]*\}/g, '…');
+function render(){
+  const rules = lib.rules.filter(r => (filter === 'all' || r.subs === '*' || r.subs.includes(filter)) && (!onlyFb || fb[r.id]));
+  $('#list').innerHTML = rules.length ? rules.map(r => {
+    const e = fb[r.id];
+    const subs = r.subs === '*' ? '全部场景' : r.subs.map(s => NAMES[s] || s).join('、');
+    return `<article class="rule">
+      <header><span class="tag ${r.kind === 'tip' ? 'tip' : 'detect'}">${r.kind === 'tip' ? '技巧' : '检测'}</span><h2>${plain(r.title)}</h2><span class="tag">${esc(r.id)}</span></header>
+      <p>${plain(r.text)}</p>
+      ${r.principle ? `<p class="muted">原理：${esc(r.principle)}</p>` : ''}
+      <p class="muted">适用：${subs}${r.source ? ` · 出处：${esc(r.source)}` : ''}</p>
+      ${r.when ? `<p class="cond">触发条件：${esc(r.when)}</p>` : ''}
+      ${e ? `<p class="fbline">反馈：有用 <b>${e.up || 0}</b> · 不准 <b class="down">${e.down || 0}</b></p>` : ''}
+    </article>`;
+  }).join('') : '<p class="muted">这个筛选下没有规则。</p>';
+}
+fetch('./rules.json', {cache: 'no-cache'}).then(r => r.json()).then(j => {
+  lib = j;
+  const detect = j.rules.filter(r => (r.kind || 'detect') === 'detect').length, tip = j.rules.filter(r => r.kind === 'tip').length;
+  $('#nDetect').textContent = detect; $('#nTip').textContent = tip;
+  let up = 0, down = 0; Object.values(fb).forEach(e => { up += e.up || 0; down += e.down || 0; });
+  $('#nUp').textContent = up; $('#nDown').textContent = down;
+  $('#lead').textContent = `版本 v${j.version} · 更新于 ${j.updated || ''}。在点评页点「有用 / 不准」后，反馈会汇总在这里。`;
+  const keys = ['all', ...Object.keys(NAMES)];
+  $('#filters').innerHTML = keys.map(k => `<button data-k="${k}" aria-pressed="${k === filter}">${k === 'all' ? '全部' : NAMES[k]}</button>`).join('');
+  render();
+}).catch(e => { $('#lead').textContent = '规则库读取失败：' + e.message; });
+$('#filters').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; filter = b.dataset.k; document.querySelectorAll('#filters button').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); render(); });
+$('#onlyFb').addEventListener('click', e => { onlyFb = !onlyFb; e.currentTarget.setAttribute('aria-pressed', onlyFb ? 'true' : 'false'); e.currentTarget.textContent = onlyFb ? '显示全部规则' : '只看有反馈的规则'; render(); });
+$('#copyFb').addEventListener('click', () => {
+  const text = JSON.stringify({version: lib && lib.version, summary: fb, log}, null, 1);
+  const note = $('#copyNote');
+  navigator.clipboard.writeText(text).then(() => { note.hidden = false; note.textContent = `已复制 ${log.length} 条反馈记录，直接粘贴发给 Claude 即可。`; })
+    .catch(() => { note.hidden = false; note.textContent = '这个浏览器不允许复制，请截图反馈统计发给 Claude。'; });
+});
+</script>
+</body>
+</html>
