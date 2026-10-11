@@ -120,7 +120,7 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 <body>
 <div id="app">
   <header class="top">
-    <div class="brand">随手大师<small>拍照教练 v0.6</small></div>
+    <div class="brand">随手大师<small>拍照教练 v0.6.1</small></div>
     <div class="seg" role="group" aria-label="拍摄模式">
       <button id="m-auto" data-mode="auto" aria-pressed="true">自动</button>
       <button id="m-scene" data-mode="scene" aria-pressed="false">风景</button>
@@ -1040,7 +1040,12 @@ function debounce(rules){
 const frame = document.createElement('canvas'), fctx = frame.getContext('2d');
 const work = document.createElement('canvas'), wctx = work.getContext('2d');
 function loop(){
-  if(!S.live) return;
+  if(!S.live || !S.video){ S.looping = false; return; }
+  S.looping = true;
+  try { loopFrame(); } catch(e){ console.warn('取景刷新出错', e); }
+  requestAnimationFrame(loop);
+}
+function loopFrame(){
   const v = S.video, W = v.videoWidth, H = v.videoHeight;
   if(W && !S.sheetOpen){
     if(view.width !== W || view.height !== H){ view.width = W; view.height = H; }
@@ -1060,24 +1065,59 @@ function loop(){
       }).catch(() => {}).finally(() => { S.busy = false; });
     }
   }
-  requestAnimationFrame(loop);
+}
+// 打开指定朝向的摄像头。部分安卓机会忽略 facingMode 的“建议”，所以依次尝试：
+// 记住的设备 → 强制朝向 → 按设备名称挑选 → 建议朝向；每次都核对实际打开的是不是想要的那颗。
+const camIds = {};
+const LABEL = {user: /front|前|facing front|selfie|user/i, environment: /back|rear|后|facing back|environment|world/i};
+function trackFacing(st){
+  const tr = st.getVideoTracks()[0], set = tr && tr.getSettings ? tr.getSettings() : {};
+  if(set.facingMode) return set.facingMode;
+  const label = (tr && tr.label) || '';
+  return LABEL.user.test(label) ? 'user' : LABEL.environment.test(label) ? 'environment' : null;
+}
+async function tryOpen(video){
+  try { return await navigator.mediaDevices.getUserMedia({video, audio: false}); } catch(e){ return null; }
 }
 async function openCamera(facing){
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('no camera api');
-  const st = await navigator.mediaDevices.getUserMedia({video: {facingMode: {ideal: facing}, width: {ideal: 1920}, height: {ideal: 1080}}, audio: false});
+  const size = {width: {ideal: 1920}, height: {ideal: 1080}};
+  const attempts = [];
+  if(camIds[facing]) attempts.push(() => tryOpen({deviceId: {exact: camIds[facing]}, ...size}));
+  attempts.push(() => tryOpen({facingMode: {exact: facing}, ...size}));
+  attempts.push(async () => {
+    const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+    const pick = devs.find(d => LABEL[facing].test(d.label)) || (devs.length > 1 ? (facing === 'user' ? devs[0] : devs[devs.length - 1]) : null);
+    return pick ? tryOpen({deviceId: {exact: pick.deviceId}, ...size}) : null;
+  });
+  attempts.push(() => tryOpen({facingMode: {ideal: facing}, ...size}));
+  attempts.push(() => tryOpen({facingMode: facing}));
+  let st = null, fallback = null;
+  for(const a of attempts){
+    st = await a(); if(!st) continue;
+    const got = trackFacing(st);
+    if(got === facing || got === null){ break; }
+    if(!fallback) fallback = st; else st.getTracks().forEach(t => t.stop());
+    st = null;
+  }
+  if(!st && fallback) st = fallback; else if(fallback && fallback !== st) fallback.getTracks().forEach(t => t.stop());
+  if(!st) throw new Error('camera unavailable');
+  const tr = st.getVideoTracks()[0], set = tr && tr.getSettings ? tr.getSettings() : {};
+  const got = trackFacing(st) || facing;
+  if(set.deviceId) camIds[got] = set.deviceId;
   const v = document.createElement('video'); v.playsInline = true; v.muted = true; v.srcObject = st; await v.play();
-  return {st, v};
+  return {st, v, facing: got};
 }
 function closeCamera(){ S.expComp = null; if(S.stream) S.stream.getTracks().forEach(t => t.stop()); S.stream = null; S.video = null; }
 async function startLive(){
   try {
-    const {st, v} = await openCamera(S.facing);
-    S.stream = st; S.video = v; S.live = true; S.active.clear(); S.scoreS = null; S.lastF = null;
+    const r = await openCamera(S.facing);
+    S.stream = r.st; S.video = r.v; S.facing = r.facing; updateFacingUI(); S.live = true; S.active.clear(); S.scoreS = null; S.lastF = null;
     window.addEventListener('devicemotion', onMotion);
     updateNightUI();
     $('#btnLive').setAttribute('aria-pressed', 'true'); $('#tag').hidden = true;
     toast('实时取景已开启，按提示调整，提示变少就可以拍了');
-    loop();
+    if(!S.looping) loop();
   } catch(e){
     toast('这个页面暂时不能直接打开摄像头。点中间的快门会调用手机相机，拍完自动点评。');
   }
@@ -1095,21 +1135,23 @@ function updateFacingUI(){
 }
 let flipping = false;
 async function flipCamera(){
-  if(flipping) return;
+  if(flipping || S.nightBusy) return;
   const next = S.facing === 'user' ? 'environment' : 'user';
   if(!S.subManual && S.mode !== 'scene'){ S.rec = next === 'user' ? 'selfie' : 'full'; setSub(S.rec, false); }
   if(!S.live){ S.facing = next; updateFacingUI(); toast(next === 'user' ? '已切到前置：点快门会打开自拍' : '已切到后置摄像头'); return; }
-  flipping = true;
+  flipping = true; $('#btnFlip').disabled = true;
   const prev = S.facing;
-  closeCamera(); S.lastF = null; S.active.clear(); S.scoreS = null;
+  closeCamera(); S.lastF = null; S.active.clear(); S.rs.clear(); S.scoreS = null; S.prevThumb = null; S.prevKp = null;
   try {
-    const {st, v} = await openCamera(next);
-    S.stream = st; S.video = v; S.facing = next;
+    const r = await openCamera(next);
+    S.stream = r.st; S.video = r.v; S.facing = r.facing;
+    if(r.facing !== next) toast('这台手机没有找到另一个摄像头');
   } catch(e){
     toast('这台手机没有找到另一个摄像头');
-    try { const {st, v} = await openCamera(prev); S.stream = st; S.video = v; } catch(e2){ stopLive(); }
+    try { const r = await openCamera(prev); S.stream = r.st; S.video = r.v; S.facing = r.facing; } catch(e2){ stopLive(); }
   }
-  updateFacingUI(); flipping = false;
+  updateFacingUI(); updateNightUI(); flipping = false; $('#btnFlip').disabled = false;
+  if(S.live && !S.looping) requestAnimationFrame(loop);
 }
 function grabFrame(){ const c = document.createElement('canvas'); c.width = frame.width; c.height = frame.height; c.getContext('2d').drawImage(frame, 0, 0); return c; }
 
