@@ -120,7 +120,7 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 <body>
 <div id="app">
   <header class="top">
-    <div class="brand">随手大师<small>拍照教练 v0.6.1</small></div>
+    <div class="brand">随手大师<small>拍照教练 v0.6.2</small></div>
     <div class="seg" role="group" aria-label="拍摄模式">
       <button id="m-auto" data-mode="auto" aria-pressed="true">自动</button>
       <button id="m-scene" data-mode="scene" aria-pressed="false">风景</button>
@@ -258,9 +258,13 @@ function recommend(F){
     if(S.mode === 'portrait') return 'full';
   }
   if(F.mean < 60) return 'night';
-  if(F.warm > 0.16 && F.sunMean > 200) return 'sunset';
-  if(F.vdens > 0.06) return 'city';
-  if(F.centerSharp > F.borderSharp*1.8 && F.centerSharp > 6) return 'macro';
+  // 日出日落只在现场取景/刚拍完且处在黄金或蓝调时段时推荐，相册旧照不按时间判断
+  const fresh = S.live || !(S.current && S.current.album), ph = timePhase();
+  if(fresh && (ph === 'golden_hour' || ph === 'blue_hour') && F.warm > 0.12 && F.sunMean > 200) return 'sunset';
+  // 花草特写：高饱和色块或大片绿色，且画面上方没有天空
+  if((F.hiSat >= 0.2 && F.skyTop < 0.5 && F.green >= 0.1) || (F.green >= 0.35 && F.skyTop < 0.3) || (F.sat >= 0.6 && F.skyTop < 0.3)) return 'macro';
+  // 城市建筑：室内、密集竖线、透视汇聚或对称构图
+  if((F.skyTop < 0.15 && F.green < 0.05) || (F.vdens >= 0.06 && F.green < 0.05 && F.hiSat < 0.3) || F.keystone > 3 || F.symScore > 0.7) return 'city';
   return 'vista';
 }
 function applyRecommendation(F, live){
@@ -287,9 +291,38 @@ function imageStats(src, W, H){
   const box = (x, y, rw, rh) => { const x0 = clamp(Math.floor(x*w), 0, w-1), y0 = clamp(Math.floor(y*h), 0, h-1); const x1 = clamp(Math.ceil((x+rw)*w), x0+1, w), y1 = clamp(Math.ceil((y+rh)*h), y0+1, h); return [x0,y0,x1,y1]; };
   const region = (x, y, rw, rh) => { const [x0,y0,x1,y1] = box(x,y,rw,rh); let s = 0, n = 0; for(let yy = y0; yy < y1; yy++) for(let xx = x0; xx < x1; xx++){ s += L[yy*w+xx]; n++; } return n ? s/n : mean; };
   const sd = (x, y, rw, rh) => { const m = region(x,y,rw,rh); const [x0,y0,x1,y1] = box(x,y,rw,rh); let s = 0, n = 0; for(let yy = y0; yy < y1; yy++) for(let xx = x0; xx < x1; xx++){ s += (L[yy*w+xx]-m)**2; n++; } return n ? Math.sqrt(s/n) : 0; };
-  // colour: warm (orange-red) share
-  let warm = 0;
-  for(let j = 0; j < d.length; j += 4){ if(d[j] - d[j+2] > 45 && d[j] > 120) warm++; }
+  // colour: warm (orange-red) share, saturation, foliage, sky at the top
+  let warm = 0, satS = 0, hiSatN = 0, greenN = 0, skyN = 0, topPx = 0;
+  const topLimit = Math.floor(h*0.3)*w;
+  for(let i = 0, j = 0; j < d.length; i++, j += 4){
+    const r = d[j], g = d[j+1], b = d[j+2], mx = Math.max(r, g, b), mn = Math.min(r, g, b), sv = mx ? (mx - mn)/mx : 0;
+    if(r - b > 45 && r > 120) warm++;
+    satS += sv; if(sv > 0.45 && mx > 80) hiSatN++;
+    if(g > r*1.05 && g > b*1.05 && sv > 0.2) greenN++;
+    if(i < topLimit){ topPx++; if((b > r*1.1 && b > 120) || (mx > 200 && sv < 0.15)) skyN++; }
+  }
+  // saliency subject: 8x8 cells scored by sharpness + colour distance from the border
+  const SG = 8, cellLap = new Float32Array(SG*SG), cellN = new Float32Array(SG*SG), cellR = new Float32Array(SG*SG), cellG = new Float32Array(SG*SG), cellB = new Float32Array(SG*SG);
+  for(let y = 1; y < h - 1; y++) for(let x = 1; x < w - 1; x++){
+    const i = y*w + x, ci = Math.min(SG-1, Math.floor(y*SG/h))*SG + Math.min(SG-1, Math.floor(x*SG/w));
+    cellLap[ci] += Math.abs(4*L[i] - L[i-1] - L[i+1] - L[i-w] - L[i+w]); cellN[ci]++;
+    cellR[ci] += d[i*4]; cellG[ci] += d[i*4+1]; cellB[ci] += d[i*4+2];
+  }
+  let bR = 0, bG = 0, bB = 0, bNn = 0;
+  for(let r = 0; r < SG; r++) for(let c = 0; c < SG; c++){ const ci = r*SG + c, n = cellN[ci] || 1; cellLap[ci] /= n; cellR[ci] /= n; cellG[ci] /= n; cellB[ci] /= n; if(r === 0 || c === 0 || r === SG-1 || c === SG-1){ bR += cellR[ci]; bG += cellG[ci]; bB += cellB[ci]; bNn++; } }
+  bR /= bNn; bG /= bNn; bB /= bNn;
+  const maxLap = Math.max(1, ...cellLap), sal = new Float32Array(SG*SG);
+  const cdist = new Float32Array(SG*SG); for(let ci = 0; ci < SG*SG; ci++) cdist[ci] = Math.hypot(cellR[ci]-bR, cellG[ci]-bG, cellB[ci]-bB);
+  const maxC = Math.max(1, ...cdist);
+  for(let ci = 0; ci < SG*SG; ci++){ const r = Math.floor(ci/SG), c = ci % SG, centre = 1 - 0.35*Math.hypot((c + 0.5)/SG - 0.5, (r + 0.5)/SG - 0.5)/0.7; sal[ci] = (0.5*cellLap[ci]/maxLap + 0.5*cdist[ci]/maxC)*centre; }
+  let peak = 0; for(let ci = 1; ci < SG*SG; ci++) if(sal[ci] > sal[peak]) peak = ci;
+  const thr = sal[peak]*0.6, seen = new Uint8Array(SG*SG), stack = [peak]; seen[peak] = 1;
+  let r0 = SG, r1 = -1, c0 = SG, c1 = -1, inS = 0, inN = 0;
+  while(stack.length){ const ci = stack.pop(), r = Math.floor(ci/SG), c = ci % SG; r0 = Math.min(r0, r); r1 = Math.max(r1, r); c0 = Math.min(c0, c); c1 = Math.max(c1, c); inS += sal[ci]; inN++;
+    for(const [dr, dc] of [[1,0],[-1,0],[0,1],[0,-1]]){ const rr = r + dr, cc = c + dc; if(rr < 0 || cc < 0 || rr >= SG || cc >= SG) continue; const ni = rr*SG + cc; if(!seen[ni] && sal[ni] >= thr){ seen[ni] = 1; stack.push(ni); } } }
+  let outS = 0; for(let ci = 0; ci < SG*SG; ci++) if(!seen[ci]) outS += sal[ci];
+  const outM = outS/Math.max(1, SG*SG - inN), inM = inS/inN, area = (r1 - r0 + 1)*(c1 - c0 + 1)/(SG*SG);
+  const subjBox = inM > outM*1.7 && area >= 0.03 && area <= 0.6 ? [c0/SG, r0/SG, (c1 - c0 + 1)/SG, (r1 - r0 + 1)/SG] : null;
   // brightest cell on a 6-column grid
   const gc = 6, gr = Math.max(4, Math.round(gc*h/w)), cw = w/gc, chh = h/gr; let sunMean = 0, sunX = 0.5, sunY = 0.5;
   for(let r = 0; r < gr; r++) for(let c = 0; c < gc; c++){ const m = region(c/gc, r/gr, 1/gc, 1/gr); if(m > sunMean){ sunMean = m; sunX = (c + 0.5)/gc; sunY = (r + 0.5)/gr; } }
@@ -347,6 +380,7 @@ function imageStats(src, W, H){
     vdens: vN/inner, keystone: (mL - mR)*180/Math.PI,
     topEdge: topN ? topE/topN : 0, lowEdge: lowN ? lowE/lowN : 0, lowSd: sd(0, 0.7, 1, 0.3),
     centerSharp: cN ? cS/cN : 0, borderSharp: bN ? bS/bN : 0, sharpX, sharpY, spread,
+    sat: satS/(w*h), hiSat: hiSatN/(w*h), green: greenN/(w*h), skyTop: topPx ? skyN/topPx : 0, subjBox,
     symScore: Math.max(0, Math.min(1, (bestSym - 0.4)/0.5)), symShift: bestShift/w,
     brightRatio: brightN/N, darkRatio: darkN/N, colorCast: Math.max(0, Math.min(1, (cast - 0.15)*2)), chaos: Math.max(0, Math.min(1, (colorfulness - 50)/50)),
     plainRatio: plainN/inner, diagRatio: oriN ? oriD/oriN : 0, domAngle: !oriN ? 0 : (oriV >= oriH && oriV >= oriD ? 90 : oriH >= oriD ? 0 : 45),
@@ -378,7 +412,7 @@ function findHorizon(L, w, h){
 
 function bodyFrom(res, W, H){
   const b = res && res.body && res.body[0];
-  if(!b || b.score < 0.3) return null;
+  if(!b || b.score < 0.42) return null;
   const k = {};
   for(const p of b.keypoints){ if(p.score >= 0.3) k[p.part] = [p.positionRaw[0]*W, p.positionRaw[1]*H]; }
   if(!k.leftShoulder || !k.rightShoulder) return null;
@@ -398,7 +432,8 @@ function bodyFrom(res, W, H){
   if(eyes.length === 2){ const em = mid(eyes[0], eyes[1]); eyesPt = [em[0]/W, em[1]/H]; if(k.nose){ const r = (k.nose[0] - em[0])/Math.max(1, dist(eyes[0], eyes[1])); yaw = Math.min(90, Math.abs(r)*150); facing = Math.sign(r); } }
   const eyeY = eyes.length ? eyes.reduce((s, p) => s + p[1], 0)/eyes.length/H : (g.nose ? (g.nose[1] - sw*0.08)/H : null);
   const faceW = ears.length === 2 ? dist(ears[0], ears[1])*1.25/W : eyes.length === 2 ? dist(eyes[0], eyes[1])*2.6/W : sw*0.55/W;
-  const headTopN = g.nose ? (g.nose[1] - 0.6*Math.abs(sm[1] - g.nose[1])) / H : (sm[1] - T*0.75) / H;
+  const eyeD = eyes.length === 2 ? dist(eyes[0], eyes[1]) : null;
+  const headTopN = eyeD ? (eyes[0][1] + eyes[1][1])/2/H - 2.1*eyeD/H : g.nose ? (g.nose[1] - 1.0*Math.abs(sm[1] - g.nose[1])) / H : (sm[1] - T*0.75) / H;
   const ankleYN = ankles.length ? Math.max(...ankles.map(p => p[1])) / H : null;
   let sitting = false, thighShort = false;
   if(hm && knees.length){
@@ -406,15 +441,18 @@ function bodyFrom(res, W, H){
     sitting = (kn[1] - hm[1]) < 0.45*T;
     thighShort = (g.lk && g.lh ? dist(g.lk, g.lh) : dist(kn, hm)) < 0.42*T;
   }
+  const hRatio = (ankleYN != null ? ankleYN : 1) - headTopN;
+  // 远处的游客、雕塑等：置信度不高或在画面里很小，不当作拍摄主体
+  if(hRatio < 0.12 || (b.score < 0.5 && hRatio < 0.2)) return null;
   return {
     g, T, origin, eyeY, faceW, sitting, thighShort,
     faceC: [fc[0]/W, fc[1]/H], yaw, facing, eyesPt,
     neckY: g.nose ? (g.nose[1]*0.35 + sm[1]*0.65)/H : sm[1]/H,
     elbowY: elbows.length ? Math.max(...elbows.map(p => p[1]))/H : null,
     square: sw/T > 0.85,
-    heightRatio: (ankleYN != null ? ankleYN : 1) - headTopN,
+    heightRatio: hRatio,
     cx: (hm ? (sm[0]+hm[0])/2 : sm[0]) / W, cy: sm[1] / H,
-    headTop: g.nose ? (g.nose[1] - 0.6*Math.abs(sm[1] - g.nose[1])) / H : (sm[1] - T*0.75) / H,
+    headTop: headTopN,
     ankleY: ankles.length ? Math.max(...ankles.map(p => p[1])) / H : null,
     kneeY: knees.length ? Math.max(...knees.map(p => p[1])) / H : null,
     full: ankles.length > 0,
@@ -583,10 +621,13 @@ function buildSignals(F, after){
     const x0 = Math.max(0, Math.min(...xs) - 0.03), x1 = Math.min(1, Math.max(...xs) + 0.03);
     const y0 = Math.max(0, P.headTop), y1 = Math.min(1, Math.max(...ys) + 0.02);
     box = [x0, y0, x1 - x0, y1 - y0];
+  } else if(F.subjBox){
+    box = F.subjBox;
   } else if(F.spread < 0.25 && F.centerSharp > F.borderSharp*1.3){
     const r = Math.max(0.06, F.spread*1.6); box = [clamp01(F.sharpX - r), clamp01(F.sharpY - r), Math.min(2*r, 1), Math.min(2*r, 1)];
   }
-  s.subject_detected = !!box;
+  // 只有确认找到主体才说「有」；找不到时不下结论，避免「先找一个主角」误报
+  if(box) s.subject_detected = true;
   s.subject_box = box;
   if(box){
     const [bx, by, bw, bh] = box, cx = bx + bw/2, cy = by + bh/2;
@@ -599,14 +640,16 @@ function buildSignals(F, after){
     s.subject_bg_color_similarity = clamp01(1 - Math.hypot(rgb[0]-all[0], rgb[1]-all[1], rgb[2]-all[2])/120);
     const [tx, ty] = nearestThirds(cx + 0.001, cy + 0.001); s.third_x = tx; s.third_y = ty;
   }
-  s.background_clutter = clamp01(F.borderSharp/18); s.plain_bg_ratio = F.plainRatio;
+  s.background_clutter = clamp01((F.borderSharp - 20)/60); s.plain_bg_ratio = F.plainRatio;
   s.symmetry_score = F.symScore; s.symmetry_axis_offset = F.symShift; s.symmetry_axis_offset_abs = Math.abs(F.symShift);
   s.diagonal_line_score = F.diagRatio; s.dominant_line_angle_deg = F.domAngle; s.frame_border_score = F.frameScore;
   s.vertical_convergence = clamp01(Math.max(0, F.keystone)/10);
   s.digital_zoom_x = 1; s.focal_equiv_mm = front ? 24 : 26;
-  s.time_phase = timePhase();
-  s.weather_overcast = ['normal', 'midday', 'golden_hour'].includes(s.time_phase) && F.contrast < 0.32 && s.mean_luma > 0.3 && F.warm < 0.08 && F.hi < 0.01;
-  s.sun_in_frame = F.sunMean > 250 && F.hi > 0.003 && F.hi < 0.08;
+  // 相册里的旧照片拍摄时间未知，不用当前时钟判断时段和天气
+  const album = !live && S.current && S.current.album;
+  if(!album) s.time_phase = timePhase();
+  if(!album) s.weather_overcast = ['normal', 'midday', 'golden_hour'].includes(s.time_phase) && F.contrast < 0.32 && s.mean_luma > 0.3 && F.warm < 0.08 && F.hi < 0.01;
+  s.sun_in_frame = F.sunMean > 252 && F.hi > 0.002 && F.hi < 0.02 && F.brightRatio < 0.12;
   s.lens_obstruction = F.cornerDark && s.mean_luma > 0.2 ? 0.5 : 0;
   s.single_side_light = F.sideRatio > 2;
   if(live){
@@ -628,9 +671,12 @@ function buildSignals(F, after){
     const fl = Math.max(1, F.region(nx, ny, nw, nh)), left = F.region(nx, ny, nw/2, nh), right = F.region(nx + nw/2, ny, nw/2, nh);
     const modeling = Math.abs(left - right)/fl;
     s.face_highlight_clip = F.clip(nx, ny, nw, nh); s.face_modeling = clamp01(modeling); s.face_hard_shadow = clamp01((modeling - 0.2)*2);
-    s.face_dappled_light = clamp01((F.sd(nx, ny, nw, nh)/fl - 0.2)*2);
+    { const ix = nx + nw*0.2, iy = ny + nh*0.2, iw = nw*0.6, ih = nh*0.6, il = Math.max(1, F.region(ix, iy, iw, ih)), ratio = F.sd(ix, iy, iw, ih)/il;
+      if(isFinite(ratio)) s.face_dappled_light = clamp01((ratio - 0.35)*2.5); }
     const fc = F.rgb(nx, ny, nw, nh); s.skin_cast = fc[2] > fc[0]*1.02 ? 'blue' : (fc[1] > fc[0]*1.02 && fc[1] > fc[2]) ? 'green' : 'none';
-    s.hair_bg_contrast = P.headTop > 0.06 ? Math.abs(F.region(nx, P.headTop - 0.05, nw, 0.04) - F.region(nx, P.headTop + 0.005, nw, 0.04))/255 : null;
+    if(P.headTop > 0.06){ const above = F.region(nx, P.headTop - 0.05, nw, 0.04), hair = F.region(nx, P.headTop + 0.005, nw, 0.04);
+      // 只在头发和背景都偏暗时才判断「发丝融进背景」
+      if(above < 70 && hair < 70) s.hair_bg_contrast = Math.abs(above - hair)/255; }
     s.subject_luma_vs_bg = fl/Math.max(1, F.mean);
     const joints = [P.g.lk, P.g.rk, P.g.la, P.g.ra, P.g.le, P.g.re, P.g.lw, P.g.rw].filter(Boolean);
     s.limb_cut_at_joint = joints.some(p => p[1]/H > 0.965 || p[0]/W < 0.015 || p[0]/W > 0.985);
@@ -1335,6 +1381,8 @@ function suggestCrop(c, F, E){
   const k = Math.abs(Math.cos(rad)) + Math.abs(Math.sin(rad))*Math.max(W/H, H/W), tr = v => (v - 0.5)*k + 0.5;
   const z = 0.82, cw = W*z, ch = H*z, P = E.portrait ? F.person : null;
   let cx = (W - cw)/2, cy = (H - ch)/2, need = ang !== 0;
+  // 自拍和大脸半身照再裁会切到头和肩，不给裁剪建议
+  if(P && (S.sub === 'selfie' || P.faceW > 0.18 || P.headTop < 0.08)) return null;
   if(P){
     const t = P.cx < 0.5 ? 1/3 : 2/3;
     if(Math.abs(P.cx - 0.5) > 0.05 && Math.abs(t - P.cx) > 0.04){ cx = tr(P.cx)*W - t*cw; need = true; }
@@ -1368,15 +1416,15 @@ function showCard(url){
   $('#saveCard').onclick = () => { downloadURL(url, `随手大师_对比卡_${stamp()}.jpg`); toast('对比卡已保存到手机「下载」文件夹'); };
 }
 async function showResult(c, opts = {}){
-  S.current = {c, file: opts.file || null, saved: !!opts.fromAlbum};
+  S.current = {c, file: opts.file || null, saved: !!opts.fromAlbum, album: !!opts.fromAlbum};
   S.sheetOpen = true; $('#sheet').hidden = false; $('#sheet').scrollTop = 0;
   const body = $('#resBody'); body.innerHTML = '<p class="note">正在点评…</p>';
   const F = await analyze(c, c.width, c.height); applyRecommendation(F, false); const E = evaluate(F, true); const D = stillDisplay(E);
   const post = LIB ? runPost(LIB, E.signals) : [];
   const o = document.createElement('canvas'); o.width = c.width; o.height = c.height;
   const og = o.getContext('2d'); og.drawImage(c, 0, 0); drawOverlay(og, F, E, D.ov);
-  const crop = suggestCrop(c, F, E); let E2 = null;
-  if(crop){ const F2 = await analyze(crop, crop.width, crop.height); E2 = evaluate(F2); }
+  let crop = suggestCrop(c, F, E), E2 = null;
+  if(crop){ const F2 = await analyze(crop, crop.width, crop.height); E2 = evaluate(F2, true); if(E2.score < E.score + 5) crop = null; }
   const prev = S.prev;
   body.innerHTML = `
     <div class="res-score"><b>${E.score}</b><span>构图分</span></div>

@@ -97,11 +97,14 @@ const CASES = [
   {name: '自拍：脸偏右', sub: 'selfie', f: {...SELFIE, face_x: 0.65}, expect: ['SS-facepos']},
   {name: '人像：姿势差', sub: 'full', f: {...PERSON, pose_on: true, pose_score: 55, pose_hint: '画面右侧的手抬高一点', pose_short: '右侧手抬高', pose_pt: [200, 200]}, expect: ['SS-pose']},
   {name: '人像：姿势到位', sub: 'full', f: {...PERSON, pose_on: true, pose_score: 88}, expect: ['SS-poseok']},
+  {name: '全身：不套用半身眼线规则', sub: 'full', f: {...PERSON, eyes_y: 0.1, face_count: 1}, expect: [], silent: 'SS-eyeline-body', suppressed: ['POR-015']},
+  {name: '半身：眼睛太靠上仍提示', sub: 'half', f: {...PERSON, full: false, eyes_y: 0.1, face_count: 1}, expect: ['POR-015']},
 ];
 const ssHit = new Set();
 for(const c of CASES){
   const res = runRules(lib, {...BASE, ...c.f}, {sub: c.sub});
   const ids = res.rules.map(r => r.id); ids.forEach(id => ssHit.add(id));
+  if(c.silent){ const sup = c.suppressed.filter(id => !res.suppressed.includes(id)); if(sup.length) fail(`${c.name}：${sup} 没有被压下`); else ssHit.add(c.silent); }
   const missing = c.expect.filter(id => !ids.includes(id)), extra = c.none ? ids : [], bad = res.rules.filter(badText);
   if(missing.length || extra.length || bad.length || res.errors.length) fail(`${c.name}：命中 ${ids.join(',') || '无'}${missing.length ? ' 缺少 ' + missing : ''}${extra.length ? ' 不该命中 ' + extra : ''}${bad.length ? ' 文案异常 ' + bad.map(r => r.id) : ''}${res.errors.length ? ' 出错 ' + res.errors : ''}`);
 }

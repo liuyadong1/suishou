@@ -1,6 +1,6 @@
 {
  "name": "随手大师场景补充规则与技巧",
- "version": "ss-2.1",
+ "version": "ss-2.2",
  "note": "SS- 开头的是针对 10 类细分场景的补充规则（subs 指细分场景，when 为表达式，draw 为画面标注）；tips 为画面无问题时轮播的技巧。由 tools/build_rules.py 与 knowledge/photo_rules.json 合并成 rules.json。",
  "rules": [
   {
@@ -460,6 +460,25 @@
    "tip": "姿势到位，可以拍了",
    "problem": "姿势相似度 {pose_score}%",
    "picto": "poseOk",
+   "category": "app",
+   "source": "随手大师 · 场景补充规则",
+   "detectability": "realtime"
+  },
+  {
+   "id": "SS-eyeline-body",
+   "subs": [
+    "full",
+    "travel",
+    "sit"
+   ],
+   "when": "has_person",
+   "priority": 5,
+   "confidence": "high",
+   "tip": null,
+   "problem": "全身/坐姿/人景照里眼睛位置由身体比例决定，不套用半身照的眼线规则",
+   "suppresses": [
+    "POR-015"
+   ],
    "category": "app",
    "source": "随手大师 · 场景补充规则",
    "detectability": "realtime"
