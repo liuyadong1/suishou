@@ -36,7 +36,7 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 .flip svg{width:20px;height:20px;fill:none;stroke:var(--fg);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .flip[aria-pressed="true"]{background:var(--target);color:var(--bg)}
 .flip[aria-pressed="true"] svg{stroke:var(--bg)}
-.nighttools{position:absolute;top:58px;left:12px;display:grid;gap:6px;justify-items:start}
+.nighttools{position:absolute;top:100px;left:12px;display:grid;gap:6px;justify-items:start}
 .pill-btn{border:1px solid var(--line);background:var(--glass);color:var(--fg);border-radius:999px;padding:6px 12px;font-size:12px}
 .pill-btn[aria-pressed="true"]{border-color:var(--target);color:var(--target)}
 .nightov{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:14px;background:rgba(0,0,0,.45);text-align:center;padding:24px}
@@ -44,6 +44,21 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 .nightbar{width:min(70vw,260px);height:6px;border-radius:3px;background:rgba(255,255,255,.2);overflow:hidden}
 .nightbar span{display:block;height:100%;width:0;background:var(--target);transition:width .2s}
 .tag{position:absolute;top:58px;right:12px;font-size:12px;background:var(--glass);padding:5px 10px;border-radius:999px;color:var(--muted)}
+.stagebar{position:absolute;top:58px;left:12px;display:flex;align-items:center;gap:4px;background:var(--glass);border-radius:999px;padding:5px 10px;font-size:12px;color:var(--muted);white-space:nowrap}
+.stagebar i{font-style:normal;opacity:.5}
+.stagebar span[data-on="now"]{color:var(--fg);font-weight:600}
+.stagebar span[data-on="done"]{color:var(--target)}
+.lockbtn{position:absolute;top:58px;right:12px}
+.lockbtn[aria-pressed="true"]{border-color:var(--fg);color:var(--fg)}
+.checks{display:flex;flex-wrap:wrap;gap:6px}
+.checks span{background:var(--glass);border-radius:999px;padding:4px 10px;font-size:12px;color:var(--muted)}
+.checks span[data-ok="true"]{color:var(--target)}
+.checks span[data-ok="bad"]{color:var(--now);font-weight:600}
+.opts{display:flex;justify-content:center;gap:8px;padding:8px 16px 0}
+.burst{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.burst button{border:2px solid transparent;border-radius:10px;padding:0;background:none;overflow:hidden}
+.burst button[aria-pressed="true"]{border-color:var(--target)}
+.burst img{border-radius:8px;display:block;aspect-ratio:3/4;object-fit:cover}
 .hints{position:absolute;left:12px;right:12px;bottom:12px;display:grid;gap:8px}
 .hint{background:var(--glass);border-radius:14px;padding:10px 12px 10px 10px;display:grid;grid-template-columns:52px minmax(0,1fr);column-gap:12px;row-gap:2px;align-items:center}
 .hint .pic{grid-row:span 2;width:52px;height:52px;border-radius:10px;background:var(--bg);display:grid;place-items:center}
@@ -120,7 +135,7 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 <body>
 <div id="app">
   <header class="top">
-    <div class="brand">随手大师<small>拍照教练 v0.6.2</small></div>
+    <div class="brand">随手大师<small>拍照教练 v0.7.0</small></div>
     <div class="seg" role="group" aria-label="拍摄模式">
       <button id="m-auto" data-mode="auto" aria-pressed="true">自动</button>
       <button id="m-scene" data-mode="scene" aria-pressed="false">风景</button>
@@ -140,10 +155,13 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
     </div>
     <div class="nightov" id="nightOv" hidden role="status" aria-live="polite"><strong id="nightText">保持不动</strong><div class="nightbar"><span id="nightBar"></span></div></div>
     <button class="flip" id="btnFlip" aria-pressed="false" aria-label="切换前后摄像头"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8a2 2 0 0 1 2-2h2l2-2h4l2 2h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M9 12.5a3 3 0 0 1 5.2-2"/><path d="M15 11.5a3 3 0 0 1-5.2 2"/><path d="M14.2 8.6v1.9h-1.9"/><path d="M9.8 15.4v-1.9h1.9"/></svg><span id="flipLabel">后置</span></button>
+    <div class="stagebar" id="stageBar" hidden aria-live="polite"><span id="st1">找机位</span><i>›</i><span id="st2">锁定</span><i>›</i><span id="st3">抠细节</span></div>
+    <button class="pill-btn lockbtn" id="btnLock" hidden aria-pressed="false">锁定取景</button>
     <div class="hints" id="hints" aria-live="polite"></div>
   </main>
 
   <div class="posebar" id="posebar"><label>姿势模板</label></div>
+  <div class="opts"><button class="pill-btn" id="btnTwo" aria-pressed="true">两段式：开</button><button class="pill-btn" id="btnAuto" aria-pressed="true">自动拍：开</button></div>
   <div class="status" id="status">姿势识别加载中…</div>
 
   <footer class="controls">
@@ -176,13 +194,16 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 <div class="toast" id="toast" hidden></div>
 
 <script type="module">
-import {compileRules, runRules, runPost, SUB_SCENES} from './engine.js';
+import {compileRules, runRules, runPost, SUB_SCENES, DETAIL_GROUPS, AUTO_HANDLED, detailGroup, stageOf} from './engine.js';
 const $ = s => document.querySelector(s);
+function pref(k, d){ try { const v = localStorage.getItem(k); return v == null ? d : v === '1'; } catch(e){ return d; } }
+function setPref(k, v){ try { localStorage.setItem(k, v ? '1' : '0'); } catch(e){} }
 const view = $('#view'), vctx = view.getContext('2d');
 const css = getComputedStyle(document.documentElement);
 const C = { target: css.getPropertyValue('--target').trim(), now: css.getPropertyValue('--now').trim(), warn: css.getPropertyValue('--warn').trim() };
 const FONT = '"PingFang SC","MiSans","Noto Sans SC",sans-serif';
-const S = { mode:'auto', pose:'none', live:false, human:null, video:null, stream:null, sensor:null, busy:false, lastRun:0, lastF:null, lastE:null, shown:[], active:new Map(), still:null, isSample:true, prev:null, sheetOpen:false, scoreS:null, facing:'environment', rs:new Map(), muted:new Map(), pitch:null, stableSince:null, prevThumb:null, prevKp:null, idleSince:null, sub:'vista', subManual:false, rec:'vista', recCand:null, recSince:0, shake:null, nightOn:true, nightBusy:false, expComp:null };
+const S = { mode:'auto', pose:'none', live:false, human:null, video:null, stream:null, sensor:null, busy:false, lastRun:0, lastF:null, lastE:null, shown:[], active:new Map(), still:null, isSample:true, prev:null, sheetOpen:false, scoreS:null, facing:'environment', rs:new Map(), muted:new Map(), pitch:null, stableSince:null, prevThumb:null, prevKp:null, idleSince:null, sub:'vista', subManual:false, rec:'vista', recCand:null, recSince:0, shake:null, nightOn:true, nightBusy:false, expComp:null,
+  two: pref('ss_two', true), autoShoot: pref('ss_auto', true), stage:'scout', lockRef:null, stillSince:null, stPrev:null, unlockN:0, holdUntil:0, chk:{}, readySince:null, cd:null, bursting:false };
 const SUBS = {
   vista:{kind:'scene', name:'山海远景'}, city:{kind:'scene', name:'城市建筑'}, sunset:{kind:'scene', name:'日出日落'}, night:{kind:'scene', name:'夜景灯光'}, macro:{kind:'scene', name:'花草特写'},
   full:{kind:'portrait', name:'全身照'}, half:{kind:'portrait', name:'半身照'}, travel:{kind:'portrait', name:'人景打卡'}, sit:{kind:'portrait', name:'坐姿'}, selfie:{kind:'portrait', name:'自拍'},
@@ -1083,6 +1104,135 @@ function debounce(rules){
   for(const [id, a] of S.active){ if(!seen.has(id) && now - a.last > 800) S.active.delete(id); }
   return [...S.active.values()].filter(a => now - a.since >= 400).map(a => a.r).sort((x, y) => x.pri - y.pri);
 }
+/* ---------- 两段式：找机位 → 锁定取景 → 抠细节 → 自动连拍 ---------- */
+const LOCK_STILL_MS = 1500, READY_MS = 600, CD_MS = 3000;
+function thumbDiff(a, b){ if(!a || !b || a.length !== b.length) return 1; let d = 0; for(let i = 0; i < a.length; i++) d += Math.abs(a[i] - b[i]); return d/a.length/255; }
+function buzz(ms){ try { navigator.vibrate && navigator.vibrate(ms); } catch(e){} }
+function resetStage(){ if(S.two && S.live) $('#hints').innerHTML = hintCard('正在看画面', '先找一个好位置', 'focus'); S.stage = 'scout'; S.lockRef = null; S.stillSince = null; S.unlockN = 0; S.chk = {}; S.readySince = null; S.cd = null; renderStageUI(); }
+function lockFrame(manual){
+  S.stage = 'lock'; S.lockRef = S.lastF && S.lastF.thumb; S.unlockN = 0; S.chk = {}; S.readySince = null; S.cd = null; S.rs.clear();
+  buzz(30); renderStageUI();
+  if(manual) toast('取景已锁定：接下来只调细节，不用再挪位置');
+}
+function unlockFrame(manual){
+  resetStage(); S.rs.clear();
+  if(manual) S.holdUntil = performance.now() + 2500;   // 手动解锁后给 2.5 秒挪动时间，避免马上又自动锁定
+}
+function updateStage(F, E){
+  const now = performance.now(), d = thumbDiff(F.thumb, S.stPrev); S.stPrev = F.thumb;
+  const steadyHand = S.shake == null || S.shake < 3;
+  if(S.stage === 'scout'){
+    if(steadyHand && d < 0.025){ if(!S.stillSince) S.stillSince = now; } else S.stillSince = null;
+    if(S.stillSince && now - S.stillSince >= LOCK_STILL_MS && now > S.holdUntil) lockFrame(false);
+    return;
+  }
+  // 已锁定：手机明显转向或画面大变 → 回到找机位
+  const dl = thumbDiff(F.thumb, S.lockRef);
+  if(dl > 0.14 || (S.shake != null && S.shake > 14)) S.unlockN++; else S.unlockN = 0;
+  if(S.unlockN >= 4){ unlockFrame(false); return; }
+  if(dl < 0.06 && S.lockRef){ const r = S.lockRef; for(let i = 0; i < r.length; i++) r[i] = (r[i]*49 + F.thumb[i])/50; }   // 手持的缓慢漂移跟着走
+  // 细节检查项：出过问题后要连续 0.6 秒没问题才打勾
+  const bad = new Set(E.rules.filter(r => !AUTO_HANDLED.includes(r.id)).map(r => detailGroup(r.id)).filter(Boolean));
+  const sg = E.signals || {};
+  if(sg.subject_motion != null && sg.subject_motion > 0.3) bad.add('timing');
+  // 连续 2 次检测到才算有问题（忽略单帧抖动）；有问题后要连续 0.6 秒没问题才打勾
+  for(const g of checkGroups()){ const c = S.chk[g] || (S.chk[g] = {lastBad: now, n: 0}); c.n = bad.has(g) ? c.n + 1 : 0; if(c.n >= 2){ c.lastBad = now; c.bad = true; } c.ok = now - c.lastBad > READY_MS; if(c.ok) c.bad = false; }
+  const allOk = checkGroups().every(g => S.chk[g].ok);
+  if(allOk){ if(!S.readySince) S.readySince = now; } else { S.readySince = null; if(S.cd){ S.cd = null; } }
+  if(allOk && S.autoShoot && !S.cd && !S.bursting && now - S.readySince > 300){ S.cd = now; buzz(20); }
+  renderStageUI();
+}
+function checkGroups(){
+  const P = S.lastF && S.lastF.person;
+  return Object.keys(DETAIL_GROUPS).filter(g => g !== 'person' || (P && SUBS[S.sub].kind === 'portrait'));
+}
+function renderStageUI(){
+  const on = S.two && S.live;
+  $('#stageBar').hidden = !on; $('#btnLock').hidden = !on;
+  if(!on) return;
+  const lock = S.stage === 'lock';
+  $('#st1').dataset.on = lock ? 'done' : 'now'; $('#st1').textContent = lock ? '✓ 找机位' : '① 找机位';
+  $('#st2').dataset.on = lock ? 'done' : ''; $('#st2').textContent = lock ? '✓ 锁定' : '② 锁定';
+  $('#st3').dataset.on = lock ? 'now' : ''; $('#st3').textContent = '③ 抠细节';
+  $('#btnLock').setAttribute('aria-pressed', lock ? 'true' : 'false'); $('#btnLock').textContent = lock ? '重新找机位' : '锁定取景';
+}
+function hintCard(title, sub, pic){ return `<div class="hint"><span class="pic">${svg64(PIC[pic] || PIC.ok)}</span><strong>${title}</strong><p>${sub}</p></div>`; }
+function renderTwoHints(rules, score){
+  $('#scoreVal').textContent = score;
+  const issue = rules.length && rules[0].id !== OK_RULE.id ? rules[0] : null;
+  if(S.stage === 'scout'){
+    if(!rules.length) return;   // 有问题但还没稳定出现：先保留上一张卡片，避免闪烁
+    $('#hints').innerHTML = issue ? hintHTML(issue) : hintCard('位置不错', '稳住手机 1.5 秒，会自动锁定取景', 'ok');
+    return;
+  }
+  const chips = `<div class="checks">${checkGroups().map(g => { const c = S.chk[g] || {}, st = c.ok ? 'true' : c.bad ? 'bad' : 'wait'; return `<span data-ok="${st}">${DETAIL_GROUPS[g].name} ${c.ok ? '✓' : c.bad ? '!' : '…'}</span>`; }).join('')}</div>`;
+  let card;
+  if(S.cd) card = hintCard('细节都到位了', '保持不动，倒数结束自动连拍', 'ok');
+  else if(issue) card = hintHTML(issue);
+  else if(S.readySince) card = hintCard('细节都到位了', S.autoShoot ? '保持不动，马上自动拍' : '可以按快门了', 'ok');
+  else card = hintCard('正在检查细节', '保持取景不变', 'focus');
+  $('#hints').innerHTML = chips + card;
+}
+function drawStageMarks(ctx, W, H){
+  if(S.stage !== 'lock') return;
+  const m = Math.min(W, H), L = m*0.07, pad = m*0.03, lw = Math.max(3, m/150);
+  const color = S.cd || S.readySince ? C.target : 'rgba(255,255,255,.9)';
+  ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(pad, pad + L); ctx.lineTo(pad, pad); ctx.lineTo(pad + L, pad);
+  ctx.moveTo(W - pad - L, pad); ctx.lineTo(W - pad, pad); ctx.lineTo(W - pad, pad + L);
+  ctx.moveTo(W - pad, H - pad - L); ctx.lineTo(W - pad, H - pad); ctx.lineTo(W - pad - L, H - pad);
+  ctx.moveTo(pad + L, H - pad); ctx.lineTo(pad, H - pad); ctx.lineTo(pad, H - pad - L);
+  ctx.stroke();
+  if(S.cd){
+    const left = Math.max(1, Math.ceil((CD_MS - (performance.now() - S.cd))/1000));
+    ctx.lineWidth = lw*1.5; ctx.strokeRect(lw, lw, W - 2*lw, H - 2*lw);
+    ctx.font = `700 ${Math.round(m*0.22)}px "Barlow Condensed",${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillText(String(left), W/2 + 3, H/2 + 3); ctx.fillStyle = C.target; ctx.fillText(String(left), W/2, H/2);
+  }
+  ctx.restore();
+}
+// 连拍 5 帧，按清晰度和「有没有突然闯入的东西」挑一张
+function sharpness(c){
+  const w = 240, h = Math.round(c.height*w/c.width), t = document.createElement('canvas'); t.width = w; t.height = h;
+  const g = t.getContext('2d', {willReadFrequently: true}); g.drawImage(c, 0, 0, w, h);
+  const d = g.getImageData(0, 0, w, h).data, L = new Float32Array(w*h);
+  for(let i = 0, j = 0; i < L.length; i++, j += 4) L[i] = d[j]*0.299 + d[j+1]*0.587 + d[j+2]*0.114;
+  let s = 0; for(let y = 1; y < h - 1; y++) for(let x = 1; x < w - 1; x++){ const i = y*w + x, v = 4*L[i] - L[i-1] - L[i+1] - L[i-w] - L[i+w]; s += v*v; }
+  const small = new Uint8Array(Math.floor(w/8)*Math.floor(h/8)); for(let y = 0, k = 0; y < Math.floor(h/8); y++) for(let x = 0; x < Math.floor(w/8); x++, k++) small[k] = L[(y*8)*w + x*8];
+  return {sharp: s/((w-2)*(h-2)), small};
+}
+function pickBest(frames){
+  const st = frames.map(sharpness), n = st[0].small.length;
+  const med = new Uint8Array(n); for(let i = 0; i < n; i++){ const v = st.map(x => x.small[i]).sort((a, b) => a - b); med[i] = v[v.length >> 1]; }
+  const maxS = Math.max(...st.map(x => x.sharp)) || 1;
+  const score = st.map(x => x.sharp/maxS - 4*thumbDiff(x.small, med));
+  let best = 0; score.forEach((v, i) => { if(v > score[best]) best = i; });
+  return best;
+}
+async function burstCapture(){
+  const v = S.video; if(!v) return null;
+  const W = v.videoWidth, H = v.videoHeight, N = 5, frames = [];
+  for(let f = 0; f < N; f++){
+    setNightOv(`连拍中 ${f + 1}/${N}`, (f + 1)/N);
+    await nextVideoFrame(v); await nextVideoFrame(v); await nextVideoFrame(v);
+    const c = document.createElement('canvas'); c.width = W; c.height = H; grabVideoTo(c.getContext('2d'), v, W, H); frames.push(c);
+  }
+  setNightOv('正在挑最好的一张…', 1); await sleep(20);
+  const idx = pickBest(frames); hideNightOv();
+  return {frames, idx};
+}
+async function autoShoot(){
+  if(S.bursting || S.sheetOpen || !S.live) return;
+  if(nightActive()){ resetStage(); return nightCapture(); }
+  S.bursting = true; buzz(40);
+  try {
+    const r = await burstCapture();
+    resetStage();
+    if(r) await showResult(r.frames[r.idx], {burst: r});
+  } catch(e){ hideNightOv(); toast('连拍失败：' + e.message); }
+  finally { S.bursting = false; }
+}
 const frame = document.createElement('canvas'), fctx = frame.getContext('2d');
 const work = document.createElement('canvas'), wctx = work.getContext('2d');
 function loop(){
@@ -1100,14 +1250,24 @@ function loopFrame(){
     fctx.setTransform(front ? -1 : 1, 0, 0, 1, front ? W : 0, 0); fctx.drawImage(v, 0, 0, W, H); fctx.setTransform(1, 0, 0, 1, 0, 0);
     vctx.drawImage(frame, 0, 0);
     if(S.lastF) drawOverlay(vctx, S.lastF, S.lastE, S.shownOv || []);
-    if(!S.busy && !S.nightBusy && performance.now() - S.lastRun > 90){
+    if(S.two) drawStageMarks(vctx, W, H);
+    if(S.cd && performance.now() - S.cd >= 3000 && !S.bursting){ S.cd = null; autoShoot(); }
+    if(!S.busy && !S.nightBusy && !S.bursting && performance.now() - S.lastRun > 90){
       S.busy = true; S.lastRun = performance.now();
       if(work.width !== W || work.height !== H){ work.width = W; work.height = H; }
       wctx.drawImage(frame, 0, 0);
       analyze(work, W, H, true).then(F => {
-        applyRecommendation(F, true); const E = evaluate(F); S.lastF = F; S.lastE = E; const D = livePolicy(E); S.shown = D.text; S.shownOv = D.ov;
+        applyRecommendation(F, true); const E = evaluate(F); S.lastF = F; S.lastE = E;
         S.scoreS = S.scoreS == null ? E.score : Math.round(S.scoreS*0.7 + E.score*0.3);
-        renderHints(S.shown, S.scoreS);
+        if(S.two){
+          updateStage(F, E);
+          const want = S.stage === 'lock' ? 'detail' : 'scout';
+          const D = livePolicy({...E, rules: E.rules.filter(r => stageOf(r.id) === want && !AUTO_HANDLED.includes(r.id))}); S.shown = D.text; S.shownOv = D.ov;
+          renderTwoHints(D.text, S.scoreS);
+        } else {
+          const D = livePolicy(E); S.shown = D.text; S.shownOv = D.ov;
+          renderHints(S.shown, S.scoreS);
+        }
       }).catch(() => {}).finally(() => { S.busy = false; });
     }
   }
@@ -1158,7 +1318,7 @@ function closeCamera(){ S.expComp = null; if(S.stream) S.stream.getTracks().forE
 async function startLive(){
   try {
     const r = await openCamera(S.facing);
-    S.stream = r.st; S.video = r.v; S.facing = r.facing; updateFacingUI(); S.live = true; S.active.clear(); S.scoreS = null; S.lastF = null;
+    S.stream = r.st; S.video = r.v; S.facing = r.facing; updateFacingUI(); S.live = true; S.active.clear(); S.scoreS = null; S.lastF = null; resetStage();
     window.addEventListener('devicemotion', onMotion);
     updateNightUI();
     $('#btnLive').setAttribute('aria-pressed', 'true'); $('#tag').hidden = true;
@@ -1170,7 +1330,7 @@ async function startLive(){
 }
 function stopLive(){
   S.live = false; window.removeEventListener('devicemotion', onMotion); S.sensor = null; S.shake = null;
-  closeCamera(); S.lastF = null;
+  closeCamera(); S.lastF = null; resetStage();
   $('#btnLive').setAttribute('aria-pressed', 'false'); renderStill();
 }
 function updateFacingUI(){
@@ -1187,7 +1347,7 @@ async function flipCamera(){
   if(!S.live){ S.facing = next; updateFacingUI(); toast(next === 'user' ? '已切到前置：点快门会打开自拍' : '已切到后置摄像头'); return; }
   flipping = true; $('#btnFlip').disabled = true;
   const prev = S.facing;
-  closeCamera(); S.lastF = null; S.active.clear(); S.rs.clear(); S.scoreS = null; S.prevThumb = null; S.prevKp = null;
+  closeCamera(); S.lastF = null; S.active.clear(); S.rs.clear(); S.scoreS = null; S.prevThumb = null; S.prevKp = null; resetStage();
   try {
     const r = await openCamera(next);
     S.stream = r.st; S.video = r.v; S.facing = r.facing;
@@ -1416,7 +1576,7 @@ function showCard(url){
   $('#saveCard').onclick = () => { downloadURL(url, `随手大师_对比卡_${stamp()}.jpg`); toast('对比卡已保存到手机「下载」文件夹'); };
 }
 async function showResult(c, opts = {}){
-  S.current = {c, file: opts.file || null, saved: !!opts.fromAlbum, album: !!opts.fromAlbum};
+  S.current = {c, file: opts.file || null, saved: !!opts.fromAlbum, album: !!opts.fromAlbum}; S.cd = null;
   S.sheetOpen = true; $('#sheet').hidden = false; $('#sheet').scrollTop = 0;
   const body = $('#resBody'); body.innerHTML = '<p class="note">正在点评…</p>';
   const F = await analyze(c, c.width, c.height); applyRecommendation(F, false); const E = evaluate(F, true); const D = stillDisplay(E);
@@ -1430,6 +1590,7 @@ async function showResult(c, opts = {}){
     <div class="res-score"><b>${E.score}</b><span>构图分</span></div>
     <div id="resImg"></div>
     <div class="row">${S.current.saved ? '<button class="btn ghost" id="savePhoto">这张来自相册，已保存</button>' : '<button class="btn" id="savePhoto">保存到相册</button>'}</div>
+    ${opts.burst ? `<h3>连拍 ${opts.burst.frames.length} 张</h3><p class="note">已按清晰度和有没有路人闯入挑出一张，点缩略图可以换。</p><div class="burst">${opts.burst.frames.map((f, i) => `<button data-i="${i}" aria-pressed="${i === opts.burst.idx}" aria-label="第 ${i + 1} 张"><img alt="" src="${f.toDataURL('image/jpeg', 0.5)}"></button>`).join('')}</div>` : ''}
     <h3>怎么改</h3>
     <div class="list">${D.text.map(hintFbHTML).join('')}</div>
     ${post.length ? `<h3>拍后建议</h3><div class="list">${post.map(p => `<div class="post"><strong>${p.problem}</strong><p>${p.action}</p><p class="src">出处：${p.source}</p></div>`).join('')}</div>` : ''}
@@ -1450,6 +1611,7 @@ async function showResult(c, opts = {}){
     toast(b.dataset.fb === 'up' ? '已记录：这条提示有用' : '已记录：这条提示不准，我们会调整');
   });
   if(!S.current.saved) $('#savePhoto').onclick = savePhoto;
+  if(opts.burst) body.querySelectorAll('.burst button').forEach(b => b.onclick = () => { const i = +b.dataset.i; if(i !== opts.burst.idx) showResult(opts.burst.frames[i], {burst: {...opts.burst, idx: i}}); });
   if(opts.single){ $('#imgSingle').src = opts.single.toDataURL('image/jpeg', 0.85); $('#imgNight').src = c.toDataURL('image/jpeg', 0.85); }
   if(crop){
     $('#imgOrig').src = c.toDataURL('image/jpeg', 0.85); $('#imgCrop').src = crop.toDataURL('image/jpeg', 0.85);
@@ -1460,7 +1622,7 @@ async function showResult(c, opts = {}){
   $('#again').onclick = () => requestLeave(() => { closeSheet(); if(!S.live) $('#fileCam').click(); });
   S.prev = {c, score: E.score}; S.still = c; S.isSample = false;
 }
-function closeSheet(){ S.sheetOpen = false; $('#sheet').hidden = true; if(!S.live) renderStill(); }
+function closeSheet(){ S.sheetOpen = false; $('#sheet').hidden = true; resetStage(); S.holdUntil = performance.now() + 1500; if(!S.live) renderStill(); }
 
 /* ---------- UI wiring ---------- */
 let toastTimer;
@@ -1472,12 +1634,21 @@ function setMode(m){
   S.active.clear(); if(!S.live) renderStill();
 }
 document.querySelector('.seg').addEventListener('click', e => { const b = e.target.closest('button'); if(b) setMode(b.dataset.mode); });
-$('#btnShutter').addEventListener('click', () => { if(S.nightBusy) return; if(nightActive()) nightCapture(); else if(S.live) showResult(grabFrame()); else $('#fileCam').click(); });
+$('#btnShutter').addEventListener('click', () => { if(S.nightBusy || S.bursting) return; S.cd = null; if(nightActive()) nightCapture(); else if(S.live) showResult(grabFrame()); else $('#fileCam').click(); });
 $('#btnNight').addEventListener('click', () => { S.nightOn = !S.nightOn; updateNightUI(); toast(S.nightOn ? '夜景合成已开启：按快门后保持 2 秒不动' : '夜景合成已关闭'); });
 $('#btnSys').addEventListener('click', useSystemCamera);
 $('#btnAlbum').addEventListener('click', () => $('#fileAlbum').click());
 $('#btnLive').addEventListener('click', () => { if(S.live) stopLive(); else startLive(); });
 $('#btnFlip').addEventListener('click', flipCamera);
+$('#btnLock').addEventListener('click', () => { if(S.stage === 'lock') unlockFrame(true); else lockFrame(true); });
+function renderOpts(){
+  $('#btnTwo').setAttribute('aria-pressed', S.two ? 'true' : 'false'); $('#btnTwo').textContent = S.two ? '两段式：开' : '两段式：关';
+  $('#btnAuto').hidden = !S.two;
+  $('#btnAuto').setAttribute('aria-pressed', S.autoShoot ? 'true' : 'false'); $('#btnAuto').textContent = S.autoShoot ? '自动拍：开' : '自动拍：关';
+}
+$('#btnTwo').addEventListener('click', () => { S.two = !S.two; setPref('ss_two', S.two); resetStage(); S.rs.clear(); renderOpts(); toast(S.two ? '两段式已开启：先找机位，稳住后自动锁定再抠细节' : '已切回旧方式：所有提示一起显示'); });
+$('#btnAuto').addEventListener('click', () => { S.autoShoot = !S.autoShoot; setPref('ss_auto', S.autoShoot); S.cd = null; renderOpts(); toast(S.autoShoot ? '自动拍已开启：细节到位后倒数 3 秒自动连拍' : '自动拍已关闭：细节到位后由你按快门'); });
+renderOpts();
 $('#fileCam').addEventListener('change', e => { handleFile(e.target.files[0], false); e.target.value = ''; });
 $('#fileAlbum').addEventListener('change', e => { handleFile(e.target.files[0], true); e.target.value = ''; });
 $('#closeSheet').addEventListener('click', () => requestLeave(closeSheet));

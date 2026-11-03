@@ -156,3 +156,19 @@ export function runPost(lib, signals){
 
 // 规则是否能在网页版实时运行（所需信号都已实现）
 export function runnable(rule){ return rule.signals.every(s => APP_SIGNALS.includes(s)); }
+
+// 两段式拍摄：规则归到哪一段。没列出的规则都属于第一段「找机位」（位置、角度、距离、背景、光线方向、姿势）。
+// 这里列出的是第二段「抠细节」：锁定取景后、不改变构图就能解决的问题，按检查项分组。
+export const DETAIL_GROUPS = {
+  level:    {name: '水平', ids: ['COMP-001', 'SS-level']},
+  exposure: {name: '曝光', ids: ['EXP-001', 'EXP-002', 'EXP-003', 'EXP-004', 'EXP-005', 'EXP-006', 'NGT-001', 'NGT-002', 'NGT-004', 'PET-001', 'PET-002', 'LGT-004', 'LGT-009', 'SS-bright', 'SS-sunexp', 'SS-nightmerge']},
+  sharp:    {name: '清晰', ids: ['STAB-001', 'FOC-001', 'FOC-002', 'FOC-004', 'FOC-006', 'FOC-007', 'COMP-026', 'NGT-003']},
+  edge:     {name: '边缘', ids: ['POR-016', 'SS-headcut', 'COMP-022']},
+  person:   {name: '人物', ids: ['POR-010', 'POR-015', 'KID-002', 'GRP-002', 'GRP-004']},
+  timing:   {name: '时机', ids: ['COMP-010', 'COMP-025', 'FLW-001']},
+};
+const DETAIL_OF = new Map(Object.entries(DETAIL_GROUPS).flatMap(([g, v]) => v.ids.map(id => [id, g])));
+// 两段式会自动连拍挑最好的一张，这几条「开连拍」提示由 App 代劳，不再显示
+export const AUTO_HANDLED = ['STAB-002', 'STAB-003'];
+export function detailGroup(id){ return DETAIL_OF.get(id) || null; }
+export function stageOf(id){ return DETAIL_OF.has(id) ? 'detail' : 'scout'; }

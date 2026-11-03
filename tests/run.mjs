@@ -3,7 +3,7 @@
 // 2. 补充规则（SS-）：手写用例
 // 3. 统计：网页版能实时运行的规则数、尚未开放的场景
 import {readFileSync} from 'node:fs';
-import {compileRules, runRules, runPost, runnable, SUB_SCENES} from '../engine.js';
+import {compileRules, runRules, runPost, runnable, SUB_SCENES, DETAIL_GROUPS, stageOf} from '../engine.js';
 
 const json = JSON.parse(readFileSync(new URL('../rules.json', import.meta.url), 'utf8'));
 const lib = compileRules(json);
@@ -112,6 +112,12 @@ const ss = json.rules.filter(r => r.id.startsWith('SS-')).map(r => r.id);
 const ssMiss = ss.filter(id => !ssHit.has(id));
 if(ssMiss.length) fail('补充规则未被用例覆盖：' + ssMiss.join(', '));
 console.log(`补充规则：${CASES.length} 个用例，覆盖 ${ss.length - ssMiss.length}/${ss.length} 条`);
+
+// ---------- 两段式：细节分组里的规则必须都在规则库里 ----------
+const allIds = new Set(json.rules.map(r => r.id));
+for(const [g, v] of Object.entries(DETAIL_GROUPS)) for(const id of v.ids) if(!allIds.has(id)) fail(`细节分组 ${g} 里的 ${id} 不在规则库中`);
+const nDetail = json.rules.filter(r => stageOf(r.id) === 'detail').length;
+console.log(`两段式：找机位 ${json.rules.length - nDetail} 条，抠细节 ${nDetail} 条`);
 
 // ---------- 3. 技巧、拍后建议、统计 ----------
 for(const sub of Object.keys(SUB_SCENES)){ if(!runRules(lib, {...BASE}, {sub, tipIndex: 1}).tip) fail(`场景 ${sub} 没有可轮播的技巧`); }
