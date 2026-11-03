@@ -59,7 +59,15 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 .burst button{border:2px solid transparent;border-radius:10px;padding:0;background:none;overflow:hidden}
 .burst button[aria-pressed="true"]{border-color:var(--target)}
 .burst img{border-radius:8px;display:block;aspect-ratio:3/4;object-fit:cover}
-.hints{position:absolute;left:12px;right:12px;bottom:12px;display:grid;gap:8px}
+.dock{position:absolute;left:12px;right:12px;bottom:12px;display:grid;gap:8px}
+.hints{display:grid;gap:8px}
+.plans{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.plans::-webkit-scrollbar{display:none}
+.plan{flex:0 0 auto;display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--glass);border-radius:12px;padding:5px 12px 5px 6px;font-size:13px;color:var(--fg)}
+.plan .pic{width:28px;height:28px;border-radius:8px;background:var(--bg);display:grid;place-items:center}
+.plan .pic svg{width:24px;height:24px}
+.plan small{font-size:10px;color:var(--target)}
+.plan[aria-pressed="true"]{border-color:var(--target);background:rgba(79,214,184,.18)}
 .hint{background:var(--glass);border-radius:14px;padding:10px 12px 10px 10px;display:grid;grid-template-columns:52px minmax(0,1fr);column-gap:12px;row-gap:2px;align-items:center}
 .hint .pic{grid-row:span 2;width:52px;height:52px;border-radius:10px;background:var(--bg);display:grid;place-items:center}
 .hint .pic svg{width:44px;height:44px}
@@ -135,7 +143,7 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 <body>
 <div id="app">
   <header class="top">
-    <div class="brand">随手大师<small>拍照教练 v0.7.0.1</small></div>
+    <div class="brand">随手大师<small>拍照教练 v0.7.1</small></div>
     <div class="seg" role="group" aria-label="拍摄模式">
       <button id="m-auto" data-mode="auto" aria-pressed="true">自动</button>
       <button id="m-scene" data-mode="scene" aria-pressed="false">风景</button>
@@ -157,7 +165,7 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
     <button class="flip" id="btnFlip" aria-pressed="false" aria-label="切换前后摄像头"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8a2 2 0 0 1 2-2h2l2-2h4l2 2h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M9 12.5a3 3 0 0 1 5.2-2"/><path d="M15 11.5a3 3 0 0 1-5.2 2"/><path d="M14.2 8.6v1.9h-1.9"/><path d="M9.8 15.4v-1.9h1.9"/></svg><span id="flipLabel">后置</span></button>
     <div class="stagebar" id="stageBar" hidden aria-live="polite"><span id="st1">找机位</span><i>›</i><span id="st2">锁定</span><i>›</i><span id="st3">抠细节</span></div>
     <button class="pill-btn lockbtn" id="btnLock" hidden aria-pressed="false">锁定取景</button>
-    <div class="hints" id="hints" aria-live="polite"></div>
+    <div class="dock"><div class="plans" id="plans" hidden role="group" aria-label="机位方案"></div><div class="hints" id="hints" aria-live="polite"></div></div>
   </main>
 
   <div class="posebar" id="posebar"><label>姿势模板</label></div>
@@ -194,6 +202,7 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 <div class="toast" id="toast" hidden></div>
 
 <script type="module">
+import {PLANS, recommendPlan, planStatus} from './plans.js';
 import {compileRules, runRules, runPost, SUB_SCENES, DETAIL_GROUPS, AUTO_HANDLED, detailGroup, stageOf} from './engine.js';
 const $ = s => document.querySelector(s);
 function pref(k, d){ try { const v = localStorage.getItem(k); return v == null ? d : v === '1'; } catch(e){ return d; } }
@@ -203,7 +212,8 @@ const css = getComputedStyle(document.documentElement);
 const C = { target: css.getPropertyValue('--target').trim(), now: css.getPropertyValue('--now').trim(), warn: css.getPropertyValue('--warn').trim() };
 const FONT = '"PingFang SC","MiSans","Noto Sans SC",sans-serif';
 const S = { mode:'auto', pose:'none', live:false, human:null, video:null, stream:null, sensor:null, busy:false, lastRun:0, lastF:null, lastE:null, shown:[], active:new Map(), still:null, isSample:true, prev:null, sheetOpen:false, scoreS:null, facing:'environment', rs:new Map(), muted:new Map(), pitch:null, stableSince:null, prevThumb:null, prevKp:null, idleSince:null, sub:'vista', subManual:false, rec:'vista', recCand:null, recSince:0, shake:null, nightOn:true, nightBusy:false, expComp:null,
-  two: pref('ss_two', true), autoShoot: pref('ss_auto', true), stage:'scout', lockRef:null, stillSince:null, stillRef:null, stillBad:0, unlockN:0, holdUntil:0, chk:{}, readySince:null, cd:null, bursting:false };
+  two: pref('ss_two', true), autoShoot: pref('ss_auto', true), stage:'scout', lockRef:null, stillSince:null, stillRef:null, stillBad:0, unlockN:0, holdUntil:0, chk:{}, readySince:null, cd:null, bursting:false,
+  plan:null, planFroze:false, planRec:null, planRecCand:null, planRecSince:0, planSt:null, planStN:0, planKey:'' };
 const SUBS = {
   vista:{kind:'scene', name:'山海远景'}, city:{kind:'scene', name:'城市建筑'}, sunset:{kind:'scene', name:'日出日落'}, night:{kind:'scene', name:'夜景灯光'}, macro:{kind:'scene', name:'花草特写'},
   full:{kind:'portrait', name:'全身照'}, half:{kind:'portrait', name:'半身照'}, travel:{kind:'portrait', name:'人景打卡'}, sit:{kind:'portrait', name:'坐姿'}, selfie:{kind:'portrait', name:'自拍'},
@@ -260,7 +270,7 @@ function setSub(id, manual){
   const changed = S.sub !== id;
   S.sub = id; if(manual) S.subManual = true;
   renderSceneBar(); updateNightUI();
-  if(changed){ renderPoseBar(); S.active.clear(); }
+  if(changed){ renderPoseBar(); S.active.clear(); if(S.plan){ S.plan = null; S.planFroze = false; S.planSt = null; } }
 }
 function initSceneBar(){
   $('#scenebar').addEventListener('click', e => { const b = e.target.closest('.scene-chip'); if(!b) return; setSub(b.dataset.sub, true); if(!S.live) renderStill(); });
@@ -1132,12 +1142,14 @@ function unlockFrame(manual){
 function updateStage(F, E){
   const now = performance.now(), cur = coarse(F.thumb);
   if(S.stage === 'scout'){
+    updatePlan(F, E, now);
+    if(planList().length && !currentPlan()){ S.stillSince = null; return; }   // 先选机位方案，才会自动锁定
     // 和「开始稳住时」的画面比；手机晃动只看大动作；偶尔一帧不稳不清零，连续 2 帧才重新计时
     const d = coarseDiff(cur, S.stillRef), calm = S.shake == null || S.shake < 10;
     if(S.stillSince && d < 0.04 && calm){ S.stillBad = 0; }
     else if(S.stillSince && ++S.stillBad < 2){ /* 容忍一帧 */ }
     else { S.stillSince = now; S.stillRef = cur; S.stillBad = 0; }
-    if(now - S.stillSince >= LOCK_STILL_MS && now > S.holdUntil) lockFrame(false);
+    if(now - S.stillSince >= lockNeedMs() && now > S.holdUntil) lockFrame(false);
     return;
   }
   // 已锁定：手机明显转向或画面大变 → 回到找机位
@@ -1146,7 +1158,8 @@ function updateStage(F, E){
   if(S.unlockN >= 4){ unlockFrame(false); return; }
   if(dl < 0.04 && S.lockRef){ const r = S.lockRef; for(let i = 0; i < r.length; i++) r[i] = (r[i]*19 + cur[i])/20; }   // 手持的缓慢漂移跟着走
   // 细节检查项：出过问题后要连续 0.6 秒没问题才打勾
-  const bad = new Set(E.rules.filter(r => !AUTO_HANDLED.includes(r.id)).map(r => detailGroup(r.id)).filter(Boolean));
+  const sup = (currentPlan() && currentPlan().suppress) || [];
+  const bad = new Set(E.rules.filter(r => !AUTO_HANDLED.includes(r.id) && !sup.includes(r.id)).map(r => detailGroup(r.id)).filter(Boolean));
   const sg = E.signals || {};
   if(sg.subject_motion != null && sg.subject_motion > 0.3) bad.add('timing');
   // 连续 2 次检测到才算有问题（忽略单帧抖动）；有问题后要连续 0.6 秒没问题才打勾
@@ -1156,13 +1169,73 @@ function updateStage(F, E){
   if(allOk && S.autoShoot && !S.cd && !S.bursting && now - S.readySince > 300){ S.cd = now; buzz(20); }
   renderStageUI();
 }
+// 机位到位：稳住 1 秒锁定；还没到位但用户停住了：给 3 秒调整，再锁定（检测不准时也不会卡住）
+function lockNeedMs(){ const p = currentPlan(); return p && S.planSt && !S.planSt.ok ? 3000 : LOCK_STILL_MS; }
+function planList(){ return PLANS[S.sub] || []; }
+function currentPlan(){ return S.plan ? planList().find(p => p.id === S.plan) || null : null; }
+function updatePlan(F, E, now){
+  const rec = recommendPlan(S.sub, F);
+  if(rec !== S.planRecCand){ S.planRecCand = rec; S.planRecSince = now; }
+  if(rec !== S.planRec && (S.planRec == null || now - S.planRecSince > 1200)) S.planRec = rec;
+  const plan = currentPlan();
+  if(!plan){ S.planSt = null; renderPlans(); return; }
+  // 方案状态连续 3 次一致才切换，避免提示来回跳
+  const st = planStatus(plan, F, E.signals, E.rules);
+  const same = S.planSt && S.planSt.ok === st.ok && (S.planSt.tip || (S.planSt.rule && S.planSt.rule.id)) === (st.tip || (st.rule && st.rule.id));
+  if(!S.planSt){ S.planSt = st; S.planStN = 0; }
+  else if(same){ S.planSt = st; S.planStN = 0; }
+  else if(++S.planStN >= 3){ S.planSt = st; S.planStN = 0; }
+  renderPlans();
+}
+function renderPlans(){
+  const el = $('#plans'), list = planList(), on = S.two && S.live && S.stage === 'scout' && list.length > 0;
+  el.hidden = !on; if(!on){ S.planKey = ''; return; }
+  const key = S.sub + '|' + S.plan + '|' + S.planRec; if(key === S.planKey) return; S.planKey = key;
+  el.innerHTML = list.map(p => `<button class="plan" data-plan="${p.id}" aria-pressed="${p.id === S.plan}"><span class="pic">${svg64(PIC[p.picto] || PIC.idea)}</span>${p.name}${p.id === S.planRec && p.id !== S.plan ? '<small>推荐</small>' : ''}</button>`).join('');
+}
+function choosePlan(id){
+  if(S.plan === id){ S.plan = null; S.planSt = null; if(S.planFroze){ S.subManual = false; S.planFroze = false; } renderPlans(); return; }
+  S.plan = id; S.planSt = null; S.stillSince = null;
+  if(!S.subManual){ S.subManual = true; S.planFroze = true; }   // 选了方案就不再自动换场景
+  const p = currentPlan(); renderPlans(); renderSceneBar();
+  if(p) $('#hints').innerHTML = hintCard(p.name, p.how, p.picto);
+}
+const PLAN_LABEL = {hz3: '地平线放在任意一条线上', hzLow: '地平线放这里', fore: '前景放这里', diag: '线条从这里伸进去', frame: '让画框围住四周', axis: '中轴线对准这里', up: '手机放低往上拍', corner: '拍到两个面', vanish: '街道尽头放这里', pts: '放在交点上', hmid: '水面分界放中间', blur: '靠近，背景会虚掉', third: '花放这里', top: '花心放中间', feet: '脚踩这条线', person: '人站这里', eye: '眼睛放这条线'};
+function drawPlanGuide(ctx, W, H){
+  const p = currentPlan(); if(!p || p.guide === 'none' || S.stage !== 'scout') return;
+  const m = Math.min(W, H), lw = Math.max(2, m/220), g = p.guide, X = v => v*W, Y = v => v*H;
+  const ok = S.planSt && S.planSt.ok, col = ok ? C.target : 'rgba(255,255,255,.85)';
+  ctx.save(); ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = lw*1.3; ctx.setLineDash([lw*5, lw*4]); ctx.lineCap = 'round';
+  const line = (x1, y1, x2, y2) => { ctx.beginPath(); ctx.moveTo(X(x1), Y(y1)); ctx.lineTo(X(x2), Y(y2)); ctx.stroke(); };
+  const circ = (x, y, r) => { ctx.beginPath(); ctx.arc(X(x), Y(y), r*m, 0, Math.PI*2); ctx.stroke(); };
+  let ly = 0.08;
+  if(g === 'hz3'){ line(0, 1/3, 1, 1/3); line(0, 2/3, 1, 2/3); ly = 2/3 + 0.02; }
+  if(g === 'hzLow'){ line(0, 2/3, 1, 2/3); ly = 2/3 + 0.02; }
+  if(g === 'hmid'){ line(0, 0.5, 1, 0.5); ly = 0.52; }
+  if(g === 'eye'){ line(0, 1/3, 1, 1/3); ly = 1/3 + 0.02; }
+  if(g === 'feet'){ line(0, 0.95, 1, 0.95); ly = 0.89; }
+  if(g === 'axis'){ line(0.5, 0, 0.5, 1); ly = 0.16; }
+  if(g === 'fore'){ ctx.strokeRect(X(0.04), Y(0.74), X(0.92), Y(0.22)); ly = 0.76; }
+  if(g === 'frame'){ ctx.strokeRect(X(0.06), Y(0.06), X(0.88), Y(0.88)); ly = 0.09; }
+  if(g === 'diag'){ line(0.04, 0.96, 0.58, 0.42); ly = 0.5; }
+  if(g === 'up'){ line(0.08, 0.98, 0.36, 0.06); line(0.92, 0.98, 0.64, 0.06); ly = 0.5; }
+  if(g === 'corner'){ line(0.5, 0.14, 0.5, 0.86); line(0.5, 0.14, 0.12, 0.26); line(0.5, 0.86, 0.12, 0.78); line(0.5, 0.14, 0.88, 0.26); line(0.5, 0.86, 0.88, 0.78); ly = 0.06; }
+  if(g === 'vanish'){ for(const [x, y] of [[0, 0], [1, 0], [0, 1], [1, 1]]) line(x, y, 0.5, 0.45); circ(0.5, 0.45, 0.03); ly = 0.5; }
+  if(g === 'pts'){ for(const x of [1/3, 2/3]) for(const y of [1/3, 2/3]) circ(x, y, 0.035); ly = 0.38; }
+  if(g === 'blur'){ circ(0.5, 0.48, 0.2); ly = 0.74; }
+  if(g === 'third'){ circ(1/3, 0.42, 0.13); ly = 0.6; }
+  if(g === 'top'){ circ(0.5, 0.5, 0.24); circ(0.5, 0.5, 0.02); ly = 0.78; }
+  if(g === 'person'){ circ(2/3, 0.5, 0.035); ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(X(2/3) - 0.06*m, Y(0.5) + 0.04*m, 0.12*m, Y(0.92) - Y(0.5) - 0.04*m, 0.03*m); ctx.stroke(); ly = 0.93; }
+  ctx.setLineDash([]); ctx.restore();
+  drawPill(ctx, PLAN_LABEL[g] || p.name, W/2, Y(ly), ok ? C.target : 'rgba(255,255,255,.92)', W, H);
+}
 function checkGroups(){
   const P = S.lastF && S.lastF.person;
   return Object.keys(DETAIL_GROUPS).filter(g => g !== 'person' || (P && SUBS[S.sub].kind === 'portrait'));
 }
 function renderStageUI(){
   const on = S.two && S.live;
-  $('#stageBar').hidden = !on; $('#btnLock').hidden = !on;
+  $('#stageBar').hidden = !on; $('#btnLock').hidden = !on; S.planKey = ''; renderPlans();
   if(!on) return;
   const lock = S.stage === 'lock';
   $('#st1').dataset.on = lock ? 'done' : 'now'; $('#st1').textContent = lock ? '✓ 找机位' : '① 找机位';
@@ -1175,6 +1248,15 @@ function renderTwoHints(rules, score){
   $('#scoreVal').textContent = score;
   const issue = rules.length && rules[0].id !== OK_RULE.id ? rules[0] : null;
   if(S.stage === 'scout'){
+    if(planList().length){
+      const p = currentPlan();
+      if(!p){ const r = planList().find(x => x.id === S.planRec) || planList()[0]; $('#hints').innerHTML = hintCard('选一个机位方案', `推荐「${r.name}」：${r.how}`, r.picto); return; }
+      const st = S.planSt;
+      if(st && !st.ok) $('#hints').innerHTML = st.rule ? hintHTML(st.rule) : hintCard(p.name, st.tip, p.picto);
+      else if(st && st.checked) $('#hints').innerHTML = hintCard('机位到位', '稳住手机 1 秒，自动锁定取景', 'ok');
+      else $('#hints').innerHTML = hintCard(p.name, p.how + '。摆好后稳住 1 秒自动锁定', p.picto);
+      return;
+    }
     if(!rules.length) return;   // 有问题但还没稳定出现：先保留上一张卡片，避免闪烁
     $('#hints').innerHTML = issue ? hintHTML(issue) : hintCard('位置不错', '稳住手机 1 秒，会自动锁定取景', 'ok');
     return;
@@ -1191,7 +1273,7 @@ function drawStageMarks(ctx, W, H){
   let prog = 1;
   if(S.stage !== 'lock'){
     if(!S.stillSince || performance.now() < S.holdUntil) return;
-    prog = Math.min(1, (performance.now() - S.stillSince)/LOCK_STILL_MS);
+    prog = Math.min(1, (performance.now() - S.stillSince)/lockNeedMs());
     if(prog < 0.15) return;
   }
   const m = Math.min(W, H), L = m*0.07*prog, pad = m*0.03, lw = Math.max(3, m/150);
@@ -1269,7 +1351,7 @@ function loopFrame(){
     fctx.setTransform(front ? -1 : 1, 0, 0, 1, front ? W : 0, 0); fctx.drawImage(v, 0, 0, W, H); fctx.setTransform(1, 0, 0, 1, 0, 0);
     vctx.drawImage(frame, 0, 0);
     if(S.lastF) drawOverlay(vctx, S.lastF, S.lastE, S.shownOv || []);
-    if(S.two) drawStageMarks(vctx, W, H);
+    if(S.two){ drawPlanGuide(vctx, W, H); drawStageMarks(vctx, W, H); }
     if(S.cd && performance.now() - S.cd >= 3000 && !S.bursting){ S.cd = null; autoShoot(); }
     if(!S.busy && !S.nightBusy && !S.bursting && performance.now() - S.lastRun > 90){
       S.busy = true; S.lastRun = performance.now();
@@ -1281,7 +1363,8 @@ function loopFrame(){
         if(S.two){
           updateStage(F, E);
           const want = S.stage === 'lock' ? 'detail' : 'scout';
-          const D = livePolicy({...E, rules: E.rules.filter(r => stageOf(r.id) === want && !AUTO_HANDLED.includes(r.id))}); S.shown = D.text; S.shownOv = D.ov;
+          const plan = currentPlan(), sup = (plan && plan.suppress) || [];
+          const D = livePolicy({...E, rules: E.rules.filter(r => stageOf(r.id) === want && !AUTO_HANDLED.includes(r.id) && !sup.includes(r.id))}); S.shown = D.text; S.shownOv = S.stage === 'scout' && planList().length ? [] : D.ov;
           renderTwoHints(D.text, S.scoreS);
         } else {
           const D = livePolicy(E); S.shown = D.text; S.shownOv = D.ov;
@@ -1659,6 +1742,7 @@ $('#btnSys').addEventListener('click', useSystemCamera);
 $('#btnAlbum').addEventListener('click', () => $('#fileAlbum').click());
 $('#btnLive').addEventListener('click', () => { if(S.live) stopLive(); else startLive(); });
 $('#btnFlip').addEventListener('click', flipCamera);
+$('#plans').addEventListener('click', e => { const b = e.target.closest('.plan'); if(b) choosePlan(b.dataset.plan); });
 $('#btnLock').addEventListener('click', () => { if(S.stage === 'lock') unlockFrame(true); else lockFrame(true); });
 function renderOpts(){
   $('#btnTwo').setAttribute('aria-pressed', S.two ? 'true' : 'false'); $('#btnTwo').textContent = S.two ? '两段式：开' : '两段式：关';

@@ -3,6 +3,7 @@
 // 2. 补充规则（SS-）：手写用例
 // 3. 统计：网页版能实时运行的规则数、尚未开放的场景
 import {readFileSync} from 'node:fs';
+import {PLANS, GUIDES, recommendPlan, planStatus} from '../plans.js';
 import {compileRules, runRules, runPost, runnable, SUB_SCENES, DETAIL_GROUPS, stageOf} from '../engine.js';
 
 const json = JSON.parse(readFileSync(new URL('../rules.json', import.meta.url), 'utf8'));
@@ -118,6 +119,27 @@ const allIds = new Set(json.rules.map(r => r.id));
 for(const [g, v] of Object.entries(DETAIL_GROUPS)) for(const id of v.ids) if(!allIds.has(id)) fail(`细节分组 ${g} 里的 ${id} 不在规则库中`);
 const nDetail = json.rules.filter(r => stageOf(r.id) === 'detail').length;
 console.log(`两段式：找机位 ${json.rules.length - nDetail} 条，抠细节 ${nDetail} 条`);
+
+// ---------- 机位方案：每个细分场景都有方案，引用的规则、图形、参考线都存在 ----------
+const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const picKeys = new Set([...html.slice(html.indexOf('const PIC = {')).split('\n};')[0].matchAll(/^\s+(\w+): `/gm)].map(m => m[1]));
+const FAKE = [{horizon: null, lowEdge: 0, lowSd: 0, diagRatio: 0, frameScore: 0, symScore: 0, symShift: 0, keystone: 0, centerSharp: 1, borderSharp: 1},
+              {horizon: {y: 0.5}, lowEdge: 0.1, lowSd: 20, diagRatio: 0.5, frameScore: 0.5, symScore: 0.8, symShift: 0.01, keystone: 5, centerSharp: 20, borderSharp: 2}];
+let nPlans = 0;
+for(const sub of Object.keys(SUB_SCENES)){
+  const list = PLANS[sub];
+  if(!list || list.length < 2) { fail(`细分场景 ${sub} 的机位方案少于 2 个`); continue; }
+  for(const p of list){
+    nPlans++;
+    for(const id of [...(p.need || []), ...(p.suppress || [])]) if(!allIds.has(id)) fail(`机位方案 ${sub}/${p.id} 引用的规则 ${id} 不存在`);
+    if(!GUIDES.includes(p.guide)) fail(`机位方案 ${sub}/${p.id} 的参考线 ${p.guide} 未定义`);
+    if(!picKeys.has(p.picto)) fail(`机位方案 ${sub}/${p.id} 的小图 ${p.picto} 未定义`);
+    if(!p.how || !p.name) fail(`机位方案 ${sub}/${p.id} 缺少说明`);
+    for(const F of FAKE){ try { const st = planStatus(p, F, {}, []); if(st.ok === false && !st.tip && !st.rule) fail(`机位方案 ${sub}/${p.id} 不到位但没有提示`); } catch(e){ fail(`机位方案 ${sub}/${p.id} 检查出错：${e.message}`); } }
+  }
+  for(const F of FAKE) if(!list.some(p => p.id === recommendPlan(sub, F))) fail(`细分场景 ${sub} 推荐了不存在的方案`);
+}
+console.log(`机位方案：${Object.keys(PLANS).length} 个细分场景，共 ${nPlans} 个方案`);
 
 // ---------- 3. 技巧、拍后建议、统计 ----------
 for(const sub of Object.keys(SUB_SCENES)){ if(!runRules(lib, {...BASE}, {sub, tipIndex: 1}).tip) fail(`场景 ${sub} 没有可轮播的技巧`); }
