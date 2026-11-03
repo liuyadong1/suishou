@@ -135,7 +135,7 @@ button:focus-visible{outline:2px solid var(--target);outline-offset:2px}
 <body>
 <div id="app">
   <header class="top">
-    <div class="brand">随手大师<small>拍照教练 v0.7.0</small></div>
+    <div class="brand">随手大师<small>拍照教练 v0.7.0.1</small></div>
     <div class="seg" role="group" aria-label="拍摄模式">
       <button id="m-auto" data-mode="auto" aria-pressed="true">自动</button>
       <button id="m-scene" data-mode="scene" aria-pressed="false">风景</button>
@@ -203,7 +203,7 @@ const css = getComputedStyle(document.documentElement);
 const C = { target: css.getPropertyValue('--target').trim(), now: css.getPropertyValue('--now').trim(), warn: css.getPropertyValue('--warn').trim() };
 const FONT = '"PingFang SC","MiSans","Noto Sans SC",sans-serif';
 const S = { mode:'auto', pose:'none', live:false, human:null, video:null, stream:null, sensor:null, busy:false, lastRun:0, lastF:null, lastE:null, shown:[], active:new Map(), still:null, isSample:true, prev:null, sheetOpen:false, scoreS:null, facing:'environment', rs:new Map(), muted:new Map(), pitch:null, stableSince:null, prevThumb:null, prevKp:null, idleSince:null, sub:'vista', subManual:false, rec:'vista', recCand:null, recSince:0, shake:null, nightOn:true, nightBusy:false, expComp:null,
-  two: pref('ss_two', true), autoShoot: pref('ss_auto', true), stage:'scout', lockRef:null, stillSince:null, stPrev:null, unlockN:0, holdUntil:0, chk:{}, readySince:null, cd:null, bursting:false };
+  two: pref('ss_two', true), autoShoot: pref('ss_auto', true), stage:'scout', lockRef:null, stillSince:null, stillRef:null, stillBad:0, unlockN:0, holdUntil:0, chk:{}, readySince:null, cd:null, bursting:false };
 const SUBS = {
   vista:{kind:'scene', name:'山海远景'}, city:{kind:'scene', name:'城市建筑'}, sunset:{kind:'scene', name:'日出日落'}, night:{kind:'scene', name:'夜景灯光'}, macro:{kind:'scene', name:'花草特写'},
   full:{kind:'portrait', name:'全身照'}, half:{kind:'portrait', name:'半身照'}, travel:{kind:'portrait', name:'人景打卡'}, sit:{kind:'portrait', name:'坐姿'}, selfie:{kind:'portrait', name:'自拍'},
@@ -1105,12 +1105,23 @@ function debounce(rules){
   return [...S.active.values()].filter(a => now - a.since >= 400).map(a => a.r).sort((x, y) => x.pri - y.pri);
 }
 /* ---------- 两段式：找机位 → 锁定取景 → 抠细节 → 自动连拍 ---------- */
-const LOCK_STILL_MS = 1500, READY_MS = 600, CD_MS = 3000;
+const LOCK_STILL_MS = 1000, READY_MS = 600, CD_MS = 3000;
+// 粗网格（8x8 块平均亮度，扣掉整体亮度变化）：对手抖、噪点、自动调亮度不敏感，只对真正换了取景敏感
+function coarse(t){
+  const tw = 40, th = Math.floor(t.length/tw), G = 8, out = new Float32Array(G*G), n = new Float32Array(G*G);
+  for(let y = 0; y < th; y++) for(let x = 0; x < tw; x++){ const k = Math.min(G-1, Math.floor(y*G/th))*G + Math.min(G-1, Math.floor(x*G/tw)); out[k] += t[y*tw + x]; n[k]++; }
+  for(let k = 0; k < out.length; k++) out[k] /= n[k] || 1;
+  return out;
+}
+function coarseDiff(a, b){
+  if(!a || !b) return 1; let off = 0; for(let k = 0; k < a.length; k++) off += a[k] - b[k]; off /= a.length;
+  let d = 0; for(let k = 0; k < a.length; k++) d += Math.abs(a[k] - b[k] - off); return d/a.length/255;
+}
 function thumbDiff(a, b){ if(!a || !b || a.length !== b.length) return 1; let d = 0; for(let i = 0; i < a.length; i++) d += Math.abs(a[i] - b[i]); return d/a.length/255; }
 function buzz(ms){ try { navigator.vibrate && navigator.vibrate(ms); } catch(e){} }
-function resetStage(){ if(S.two && S.live) $('#hints').innerHTML = hintCard('正在看画面', '先找一个好位置', 'focus'); S.stage = 'scout'; S.lockRef = null; S.stillSince = null; S.unlockN = 0; S.chk = {}; S.readySince = null; S.cd = null; renderStageUI(); }
+function resetStage(){ if(S.two && S.live) $('#hints').innerHTML = hintCard('正在看画面', '先找一个好位置', 'focus'); S.stage = 'scout'; S.lockRef = null; S.stillSince = null; S.stillRef = null; S.stillBad = 0; S.unlockN = 0; S.chk = {}; S.readySince = null; S.cd = null; renderStageUI(); }
 function lockFrame(manual){
-  S.stage = 'lock'; S.lockRef = S.lastF && S.lastF.thumb; S.unlockN = 0; S.chk = {}; S.readySince = null; S.cd = null; S.rs.clear();
+  S.stage = 'lock'; S.lockRef = S.lastF && S.lastF.thumb ? coarse(S.lastF.thumb) : null; S.unlockN = 0; S.chk = {}; S.readySince = null; S.cd = null; S.rs.clear();
   buzz(30); renderStageUI();
   if(manual) toast('取景已锁定：接下来只调细节，不用再挪位置');
 }
@@ -1119,18 +1130,21 @@ function unlockFrame(manual){
   if(manual) S.holdUntil = performance.now() + 2500;   // 手动解锁后给 2.5 秒挪动时间，避免马上又自动锁定
 }
 function updateStage(F, E){
-  const now = performance.now(), d = thumbDiff(F.thumb, S.stPrev); S.stPrev = F.thumb;
-  const steadyHand = S.shake == null || S.shake < 3;
+  const now = performance.now(), cur = coarse(F.thumb);
   if(S.stage === 'scout'){
-    if(steadyHand && d < 0.025){ if(!S.stillSince) S.stillSince = now; } else S.stillSince = null;
-    if(S.stillSince && now - S.stillSince >= LOCK_STILL_MS && now > S.holdUntil) lockFrame(false);
+    // 和「开始稳住时」的画面比；手机晃动只看大动作；偶尔一帧不稳不清零，连续 2 帧才重新计时
+    const d = coarseDiff(cur, S.stillRef), calm = S.shake == null || S.shake < 10;
+    if(S.stillSince && d < 0.04 && calm){ S.stillBad = 0; }
+    else if(S.stillSince && ++S.stillBad < 2){ /* 容忍一帧 */ }
+    else { S.stillSince = now; S.stillRef = cur; S.stillBad = 0; }
+    if(now - S.stillSince >= LOCK_STILL_MS && now > S.holdUntil) lockFrame(false);
     return;
   }
   // 已锁定：手机明显转向或画面大变 → 回到找机位
-  const dl = thumbDiff(F.thumb, S.lockRef);
-  if(dl > 0.14 || (S.shake != null && S.shake > 14)) S.unlockN++; else S.unlockN = 0;
+  const dl = coarseDiff(cur, S.lockRef);
+  if(dl > 0.09 || (S.shake != null && S.shake > 25)) S.unlockN++; else S.unlockN = 0;
   if(S.unlockN >= 4){ unlockFrame(false); return; }
-  if(dl < 0.06 && S.lockRef){ const r = S.lockRef; for(let i = 0; i < r.length; i++) r[i] = (r[i]*49 + F.thumb[i])/50; }   // 手持的缓慢漂移跟着走
+  if(dl < 0.04 && S.lockRef){ const r = S.lockRef; for(let i = 0; i < r.length; i++) r[i] = (r[i]*19 + cur[i])/20; }   // 手持的缓慢漂移跟着走
   // 细节检查项：出过问题后要连续 0.6 秒没问题才打勾
   const bad = new Set(E.rules.filter(r => !AUTO_HANDLED.includes(r.id)).map(r => detailGroup(r.id)).filter(Boolean));
   const sg = E.signals || {};
@@ -1162,7 +1176,7 @@ function renderTwoHints(rules, score){
   const issue = rules.length && rules[0].id !== OK_RULE.id ? rules[0] : null;
   if(S.stage === 'scout'){
     if(!rules.length) return;   // 有问题但还没稳定出现：先保留上一张卡片，避免闪烁
-    $('#hints').innerHTML = issue ? hintHTML(issue) : hintCard('位置不错', '稳住手机 1.5 秒，会自动锁定取景', 'ok');
+    $('#hints').innerHTML = issue ? hintHTML(issue) : hintCard('位置不错', '稳住手机 1 秒，会自动锁定取景', 'ok');
     return;
   }
   const chips = `<div class="checks">${checkGroups().map(g => { const c = S.chk[g] || {}, st = c.ok ? 'true' : c.bad ? 'bad' : 'wait'; return `<span data-ok="${st}">${DETAIL_GROUPS[g].name} ${c.ok ? '✓' : c.bad ? '!' : '…'}</span>`; }).join('')}</div>`;
@@ -1174,9 +1188,14 @@ function renderTwoHints(rules, score){
   $('#hints').innerHTML = chips + card;
 }
 function drawStageMarks(ctx, W, H){
-  if(S.stage !== 'lock') return;
-  const m = Math.min(W, H), L = m*0.07, pad = m*0.03, lw = Math.max(3, m/150);
-  const color = S.cd || S.readySince ? C.target : 'rgba(255,255,255,.9)';
+  let prog = 1;
+  if(S.stage !== 'lock'){
+    if(!S.stillSince || performance.now() < S.holdUntil) return;
+    prog = Math.min(1, (performance.now() - S.stillSince)/LOCK_STILL_MS);
+    if(prog < 0.15) return;
+  }
+  const m = Math.min(W, H), L = m*0.07*prog, pad = m*0.03, lw = Math.max(3, m/150);
+  const color = S.cd || S.readySince ? C.target : `rgba(255,255,255,${S.stage === 'lock' ? 0.9 : 0.35 + 0.5*prog})`;
   ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.lineCap = 'round';
   ctx.beginPath();
   ctx.moveTo(pad, pad + L); ctx.lineTo(pad, pad); ctx.lineTo(pad + L, pad);
